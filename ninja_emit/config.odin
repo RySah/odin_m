@@ -11,24 +11,36 @@ Naming_Conv :: enum u8 {
 	Mangled
 }
 
-Config_Virtual_Cache :: struct {
-	name_dep_tree_clashes: bool,
-	name_dep_tree_clash_a, name_dep_tree_clash_b: ^Config,
+Config_Shared_Virtual_Cache :: struct {
 	dep_tree_is_dirty: bool
 }
 
+Config_Virtual_Cache :: struct {
+	name_dep_tree_clashes: bool,
+	name_dep_tree_clash_a, name_dep_tree_clash_b: ^Config,
+	dep_tree_is_dirty: ^bool
+}
+
 Config :: struct {
-	//basic: ninja_basic.Config,
 	project_name: string,
 	naming_conv: Naming_Conv, // For proper usage, use `config_set_naming_conv` etc. to update this.
 	required_features: Feature_Set, // For proper usage, use `config_try_add_required_feature` etc. to update this.
 	deps: [dynamic]^Config,
-	vcache: Config_Virtual_Cache
+	vcache: Config_Virtual_Cache,
+	using _: Statement_Manager
 }
 
-config_init :: proc(self: ^Config, allocator := context.allocator) -> mem.Allocator_Error {
-	self.vcache.dep_tree_is_dirty = true
+// More "semantically immutable" transmutation of `Config`
+Immut_Config :: distinct [size_of(Config)]u8
+
+config_svcache_init :: proc(self: ^Config_Shared_Virtual_Cache) {
+	self.dep_tree_is_dirty = true
+}
+
+config_init :: proc(self: ^Config, svcache: ^Config_Shared_Virtual_Cache, allocator := context.allocator) -> mem.Allocator_Error {
+	self.vcache.dep_tree_is_dirty = &svcache.dep_tree_is_dirty
 	self.deps = make([dynamic]^Config, allocator=allocator) or_return
+	statement_manager_init(self, allocator=self.allocator) or_return
 	return nil
 }
 
@@ -49,14 +61,29 @@ config_destroy :: proc(self: ^Config) -> mem.Allocator_Error {
 	}
 
 	_remove_ref(self, &self.deps)
+	self.vcache.dep_tree_is_dirty^ = true
 
+	statement_manager_destroy(self) or_return
 	delete(self.deps) or_return
 	return nil
 }
 
-config_make :: proc(allocator := context.allocator) -> (out: Config, err: mem.Allocator_Error) #optional_allocator_error {
-	config_init(&out, allocator=allocator) or_return
+config_make :: proc(svcache: ^Config_Shared_Virtual_Cache, allocator := context.allocator) -> (out: Config, err: mem.Allocator_Error) #optional_allocator_error {
+	config_init(&out, svcache, allocator=allocator) or_return
 	return
+}
+
+config_add_dep :: proc(self: ^Config, dep: ^Config) -> mem.Allocator_Error {
+	append(&self.deps, dep) or_return
+	self.vcache.dep_tree_is_dirty^ = true
+	return nil
+}
+
+config_rem_dep :: proc(self: ^Config, dep: ^Config) {
+	if i, found := slice.linear_search(self.deps[:], dep); found {
+		unordered_remove(&self.deps, i)
+		self.vcache.dep_tree_is_dirty^ = true
+	}
 }
 
 config_hash32 :: proc(self: ^Config) -> u32 {
@@ -103,8 +130,8 @@ config_name_dep_tree_clashes :: proc(self: ^Config, possibly_cyclical := true) -
 
 // Virtual cache aware
 vca_config_name_dep_tree_clashes :: proc(self: ^Config, possibly_cyclical := true) -> (bool, ^Config, ^Config) {
-	if self.vcache.dep_tree_is_dirty {
-		self.vcache.dep_tree_is_dirty = false
+	if self.vcache.dep_tree_is_dirty^ {
+		self.vcache.dep_tree_is_dirty^ = false
 		self.vcache.name_dep_tree_clashes, self.vcache.name_dep_tree_clash_a, self.vcache.name_dep_tree_clash_b = config_name_dep_tree_clashes(self, possibly_cyclical=possibly_cyclical)
 	}
 	return self.vcache.name_dep_tree_clashes, self.vcache.name_dep_tree_clash_a, self.vcache.name_dep_tree_clash_b

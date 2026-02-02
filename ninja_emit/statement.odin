@@ -5,6 +5,11 @@ import "../ninja_basic"
 import "core:mem"
 import "base:runtime"
 
+Statement_Manager :: struct {
+	statements: [dynamic]Statement,
+	allocator: mem.Allocator
+}
+
 Statement_Variable :: struct {
 	using _: Variable,
 	is_builtin: bool
@@ -17,16 +22,46 @@ Statement :: struct {
 	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
-// More "semantically immutable" transmutation of Statement
-Immut_Statement :: [size_of(Statement)]u8
+// More "semantically immutable" transmutation of `Statement`
+Final_Statement :: distinct [size_of(Statement)]u8
 
-Final_Statement :: struct {
-	data: Immut_Statement,
-	// Errors will not be immediately logged until registered
-	errors: [dynamic]Error
+statement_manager_init :: proc(self: ^Statement_Manager, allocator := context.allocator) -> mem.Allocator_Error {
+	self.statements = make([dynamic]Statement, allocator=allocator) or_return
+	self.allocator = allocator
+	return nil
 }
 
-statement_final :: proc(s: ^Statement, minimum_version: Version, allocator := context.allocator) -> 
+statement_manager_destroy :: proc(self: ^Statement_Manager) -> mem.Allocator_Error {
+	delete(self.statements) or_return
+	return nil
+}
+
+statement_manager_register_statement :: proc(self: ^Statement_Manager, s: Statement, source_loc: runtime.Source_Code_Location = #caller_location) -> mem.Allocator_Error {
+	s := s
+	if _, s_loc_set := s.source_loc.?; !s_loc_set {
+		s.source_loc = source_loc
+	}
+	append(&self.statements, s) or_return
+	return nil
+}
+
+statement_manager_create_statement :: proc(self: ^Statement_Manager) -> (out: Statement, err: mem.Allocator_Error) #optional_allocator_error {
+	out.variables = make([dynamic]Statement_Variable, allocator=self.allocator) or_return
+	return
+}
+
+// For those that has `Statement_Manager` as a sub-type
+register_statement :: statement_manager_register_statement
+
+// For those that has `Statement_Manager` as a sub-type
+create_statement :: statement_manager_create_statement
+
+statement_destroy :: proc(self: ^Statement) -> mem.Allocator_Error {
+	delete(self.variables) or_return
+	return nil
+}
+
+statement_final :: proc(self: ^Statement, minimum_version: Version, errors: ^[dynamic]Error, allocator := context.allocator) -> 
 (out: Final_Statement, err: mem.Allocator_Error) {
 	LPEC_Client_Data :: struct {
 		errors: ^[dynamic]Error,
@@ -80,17 +115,15 @@ statement_final :: proc(s: ^Statement, minimum_version: Version, allocator := co
 		}
 	}
 
-	out.errors = make([dynamic]Error, allocator=allocator) or_return
-
 	lpec_client_data := LPEC_Client_Data {
-		errors = &out.errors,
+		errors = errors,
 		error_allocator = allocator
 	}
 
-	_resolve_expr(&s.expr, lpec_client_data)
-	for &var in s.variables {
+	_resolve_expr(&self.expr, lpec_client_data)
+	for &var in self.variables {
 		_resolve_expr(&var.expr, lpec_client_data)
-		switch s.kind {
+		switch self.kind {
 			case .Build:
 			case .Rule:
 				var.is_builtin = 
@@ -113,6 +146,5 @@ statement_final :: proc(s: ^Statement, minimum_version: Version, allocator := co
 		}
 	}
 
-	out.data = transmute(Immut_Statement)(s^)
-	return
+	return transmute(Final_Statement)(self^), nil
 }
