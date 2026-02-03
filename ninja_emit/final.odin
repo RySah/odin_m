@@ -37,7 +37,8 @@ Final :: struct($T: typeid) {
 			if !is_ident(ident) {
 				append(errors,
 					variable_access_ident_syntax_error_in_lazy_tree(
-						original^, ident, is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
+						original^, ident, 
+						is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
 						source_loc=source_loc, allocator=error_allocator
 					)
 				)
@@ -56,7 +57,8 @@ Final :: struct($T: typeid) {
 							if !found {
 								append(errors,
 									variable_access_ident_logic_error_in_lazy_tree(
-										original^, ident, is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
+										original^, ident, 
+										is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
 										source_loc=source_loc, allocator=error_allocator
 									)
 								)
@@ -75,7 +77,8 @@ Final :: struct($T: typeid) {
 							if !found {
 								append(errors,
 									variable_access_ident_logic_error_in_lazy_tree(
-										original^, ident, is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
+										original^, ident, 
+										is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
 										source_loc=source_loc, allocator=error_allocator
 									)
 								)
@@ -122,7 +125,6 @@ Final :: struct($T: typeid) {
 			_resolve_expr(internal.right, client_data)
 		case Int_Expr:
 		case String_Expr:
-		case Quoted_String_Expr:
 	}
 }
 

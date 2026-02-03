@@ -40,8 +40,6 @@ String_Expr :: struct {
 	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
-Quoted_String_Expr :: distinct String_Expr
-
 Expr :: union {
 	Lazy_Path_Expr,
 	Lazy_Command_Expr,
@@ -49,7 +47,6 @@ Expr :: union {
 	Bin_Expr,
 	Int_Expr,
 	String_Expr,
-	Quoted_String_Expr,
 }
 
 sbprint_bin_expr :: proc(sb: ^strings.Builder, e: Bin_Expr) -> string {
@@ -85,10 +82,6 @@ sbprint_string_expr :: proc(sb: ^strings.Builder, e: String_Expr) -> string {
 	return strings.to_string(sb^)
 }
 
-sbprint_quoted_string_expr :: proc(sb: ^strings.Builder, e: Quoted_String_Expr) -> string {
-	return fmt.sbprintf(sb, "%q", e.base)
-}
-
 sbprint_expr :: proc(sb: ^strings.Builder, e: Expr) -> string {
 	switch internal in e {
 		case Lazy_Path_Expr:     return sbprint_lazy_path(sb, internal.base)
@@ -97,7 +90,6 @@ sbprint_expr :: proc(sb: ^strings.Builder, e: Expr) -> string {
 		case String_Expr:        return sbprint_string_expr(sb, internal)
 		case Bin_Expr:           return sbprint_bin_expr(sb, internal)
 		case Int_Expr:           return sbprint_int_expr(sb, internal)
-		case Quoted_String_Expr: return sbprint_quoted_string_expr(sb, internal)
 	}
 	return strings.to_string(sb^)
 }
