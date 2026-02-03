@@ -23,10 +23,12 @@ Expr_Collection :: struct {
 	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
-Lazy_Path_Expr :: struct {
-	base: Lazy_Path,
+@(private="file") _Lazy_Tree_Expr :: struct {
+	base: Lazy_Tree,
 	source_loc: Maybe(runtime.Source_Code_Location)
 }
+Lazy_Path_Expr :: distinct _Lazy_Tree_Expr
+Lazy_Command_Expr :: distinct _Lazy_Tree_Expr
 
 Int_Expr :: struct {
 	base: union { i64, u64 },
@@ -38,15 +40,16 @@ String_Expr :: struct {
 	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
-Ident_Expr :: distinct String_Expr
+Quoted_String_Expr :: distinct String_Expr
 
 Expr :: union {
 	Lazy_Path_Expr,
+	Lazy_Command_Expr,
 	Expr_Collection,
 	Bin_Expr,
 	Int_Expr,
 	String_Expr,
-	Ident_Expr,
+	Quoted_String_Expr,
 }
 
 sbprint_bin_expr :: proc(sb: ^strings.Builder, e: Bin_Expr) -> string {
@@ -78,22 +81,23 @@ sbprint_int_expr :: proc(sb: ^strings.Builder, e: Int_Expr) -> string {
 }
 
 sbprint_string_expr :: proc(sb: ^strings.Builder, e: String_Expr) -> string {
-	return fmt.sbprintf(sb, "%q", e.base)
-}
-
-sbprint_ident_expr :: proc(sb: ^strings.Builder, e: Ident_Expr) -> string {
 	strings.write_string(sb, e.base)
 	return strings.to_string(sb^)
 }
 
+sbprint_quoted_string_expr :: proc(sb: ^strings.Builder, e: Quoted_String_Expr) -> string {
+	return fmt.sbprintf(sb, "%q", e.base)
+}
+
 sbprint_expr :: proc(sb: ^strings.Builder, e: Expr) -> string {
 	switch internal in e {
-		case Lazy_Path_Expr: return sbprint_lazy_path(sb, internal.base)
-		case Expr_Collection: return sbprint_expr_collection(sb, internal)
-		case String_Expr: return sbprint_string_expr(sb, internal)
-		case Bin_Expr: return sbprint_bin_expr(sb, internal)
-		case Int_Expr: return sbprint_int_expr(sb, internal)
-		case Ident_Expr: return sbprint_ident_expr(sb, internal)
+		case Lazy_Path_Expr:     return sbprint_lazy_path(sb, internal.base)
+		case Lazy_Command_Expr:  return sbprint_lazy_command(sb, internal.base)
+		case Expr_Collection:    return sbprint_expr_collection(sb, internal)
+		case String_Expr:        return sbprint_string_expr(sb, internal)
+		case Bin_Expr:           return sbprint_bin_expr(sb, internal)
+		case Int_Expr:           return sbprint_int_expr(sb, internal)
+		case Quoted_String_Expr: return sbprint_quoted_string_expr(sb, internal)
 	}
 	return strings.to_string(sb^)
 }

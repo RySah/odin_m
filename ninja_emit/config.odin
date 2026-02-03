@@ -132,13 +132,16 @@ config_add_variable :: proc(self: ^Config, var: Statement_Variable) -> mem.Alloc
 }
 
 config_resolve_required_features :: proc(self: ^Config, skip := Feature_Set{}) -> mem.Allocator_Error {
-	skip := skip
-	
-	if .RULE_SCOPING not_in skip && .RULE_SCOPING not_in self.required_features {
-		add_rule_scoping := false
-
-		if add_rule_scoping do self.required_features += { .RULE_SCOPING }
+	if .POOLS not_in skip {
+		for &stmt in self.statements {
+			if stmt.kind == .Pool {
+				self.required_features += { .POOLS }
+				break
+			}
+		}
 	}
+
+
 
 	return nil
 }

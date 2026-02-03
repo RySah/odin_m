@@ -63,20 +63,24 @@ logic_error :: proc(format: string, args: ..any, source_loc: Maybe(runtime.Sourc
 	}
 }
 
-variable_access_ident_syntax_error_in_lazy_path :: proc(p: Lazy_Path, ident: string, source_loc: Maybe(runtime.Source_Code_Location) = nil, allocator := context.allocator) -> Error {
+variable_access_ident_syntax_error_in_lazy_tree :: proc(
+	tree: Lazy_Tree, ident: string, resolve: Lazy_Tree_Resolve_Proc,
+	source_loc: Maybe(runtime.Source_Code_Location) = nil, allocator := context.allocator) -> Error {
 	return syntax_error(
 		"`%s` Variable access identifier (`%s`) is invalid. Expected format \'[A-Za-z_.-][A-Za-z0-9_.-]*\'.",
-		lazy_path_resolve(p, allocator=context.temp_allocator),
+		resolve(tree, context.temp_allocator),
 		ident,
 		source_loc=source_loc,
 		allocator=allocator
 	)
 }
 
-variable_access_ident_logic_error_in_lazy_path :: proc(p: Lazy_Path, ident: string, source_loc: Maybe(runtime.Source_Code_Location) = nil, allocator := context.allocator) -> Error {
+variable_access_ident_logic_error_in_lazy_tree :: proc(
+	tree: Lazy_Tree, ident: string, resolve: Lazy_Tree_Resolve_Proc,
+	source_loc: Maybe(runtime.Source_Code_Location) = nil, allocator := context.allocator) -> Error {
 	return logic_error(
 		"`%s` Variable access identifier (`%s`) could not be found.",
-		lazy_path_resolve(p, allocator=context.temp_allocator),
+		resolve(tree, context.temp_allocator),
 		ident,
 		source_loc=source_loc,
 		allocator=allocator

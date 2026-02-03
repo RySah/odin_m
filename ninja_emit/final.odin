@@ -8,18 +8,19 @@ Final :: struct($T: typeid) {
     _: [size_of(T)]u8
 }
 
-@(private="file") LPEC_Client_Data :: struct {
+@(private="file") _LTEC_Client_Data :: struct {
 	errors: ^[dynamic]Error,
 	error_allocator: mem.Allocator,
 	source_loc: Maybe(runtime.Source_Code_Location),
-	original: ^Lazy_Path,
+	original: ^Lazy_Tree,
 	variables: ^[]Statement_Variable,
 	kind: Statement_Kind,
-	minimum_version: Version
+	minimum_version: Version,
+	is_path: bool
 }
-@(private="file") LPEC :: Lazy_Path_Event_Callback {
-	on_leaf = proc(leaf: ^Lazy_Path_Leaf, client_data: rawptr) {
-		client_data := transmute(^LPEC_Client_Data)client_data
+@(private="file") _LTEC :: Lazy_Tree_Event_Callback {
+	on_leaf = proc(leaf: ^Lazy_Leaf, client_data: rawptr) {
+		client_data := transmute(^_LTEC_Client_Data)client_data
 		errors := client_data.errors
 		error_allocator := client_data.error_allocator
 		source_loc := client_data.source_loc
@@ -27,6 +28,7 @@ Final :: struct($T: typeid) {
 		variables := client_data.variables
 		kind := client_data.kind
 		minimum_version := client_data.minimum_version
+		is_path := client_data.is_path
 		seg := leaf^
 		// Enforcing the `${...}` syntax rather than the less descriptive `$...`
 		if len(seg) > len("${}") && seg[0] == '$' && seg[1] == '{' && seg[len(seg)-1] == '}' {
@@ -34,8 +36,9 @@ Final :: struct($T: typeid) {
 			ident := transmute(string)ident_seg
 			if !is_ident(ident) {
 				append(errors,
-					variable_access_ident_syntax_error_in_lazy_path(
-						original^, ident, source_loc=source_loc, allocator=error_allocator
+					variable_access_ident_syntax_error_in_lazy_tree(
+						original^, ident, is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
+						source_loc=source_loc, allocator=error_allocator
 					)
 				)
 			} else { // is_ident
@@ -52,8 +55,9 @@ Final :: struct($T: typeid) {
 							}
 							if !found {
 								append(errors,
-									variable_access_ident_logic_error_in_lazy_path(
-										original^, ident, source_loc=source_loc, allocator=error_allocator
+									variable_access_ident_logic_error_in_lazy_tree(
+										original^, ident, is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
+										source_loc=source_loc, allocator=error_allocator
 									)
 								)
 							}
@@ -70,8 +74,9 @@ Final :: struct($T: typeid) {
 							}
 							if !found {
 								append(errors,
-									variable_access_ident_logic_error_in_lazy_path(
-										original^, ident, source_loc=source_loc, allocator=error_allocator
+									variable_access_ident_logic_error_in_lazy_tree(
+										original^, ident, is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
+										source_loc=source_loc, allocator=error_allocator
 									)
 								)
 							}
@@ -87,17 +92,27 @@ Final :: struct($T: typeid) {
 }
 
 // Mainly identifies syntax errors in lazy paths, and flags variables that are builtin based-off the minimum_version.
-@(private="file") _resolve_expr :: proc(e: ^Expr, client_data: LPEC_Client_Data) {
+@(private="file") _resolve_expr :: proc(e: ^Expr, client_data: _LTEC_Client_Data) {
 	client_data := client_data
 	switch &internal in e {
 		case Lazy_Path_Expr:
-			lazy_path := &internal.base
+			lazy_tree := &internal.base
 
 			client_data.source_loc = internal.source_loc
-			client_data.original = lazy_path
+			client_data.original = lazy_tree
+			client_data.is_path = true
 
-			lpec := LPEC
-			lazy_path_transform(lazy_path^, lpec, &client_data)
+			ltec := _LTEC
+			lazy_tree_transform(lazy_tree^, ltec, &client_data)
+		case Lazy_Command_Expr:
+			lazy_tree := &internal.base
+
+			client_data.source_loc = internal.source_loc
+			client_data.original = lazy_tree
+			client_data.is_path = false
+
+			ltec := _LTEC
+			lazy_tree_transform(lazy_tree^, ltec, &client_data)
 		case Expr_Collection:
 			for other_e in internal.arr {
 				_resolve_expr(other_e, client_data)
@@ -107,7 +122,7 @@ Final :: struct($T: typeid) {
 			_resolve_expr(internal.right, client_data)
 		case Int_Expr:
 		case String_Expr:
-		case Ident_Expr:
+		case Quoted_String_Expr:
 	}
 }
 
@@ -116,7 +131,7 @@ Final :: struct($T: typeid) {
 		(name == "ninja_required_version" && version_gte(VERSION_COMPATIBILITY_VERSION, minimum_version)) ||
 
 		name == "command" ||
-		name == "depfile" ||
+		( name == "depfile" && version_gte(DEPS_VERSION, minimum_version)) ||
 		(name == "deps" && version_gte(DEPS_VERSION, minimum_version)) ||
 		(name == "msvc_deps_prefix" && version_gte(Version{ 1, 5 }, minimum_version)) ||
 		name == "description" ||
@@ -162,7 +177,7 @@ statement_final :: proc(
     copy(variables, extra_vars)
     copy(variables[len(extra_vars):], self.variables[:])
 
-    lpec_client_data := LPEC_Client_Data {
+    lpec_client_data := _LTEC_Client_Data {
 		errors = errors,
 		error_allocator = allocator,
         variables = &variables,
@@ -182,7 +197,7 @@ statement_final :: proc(
 config_final :: proc(self: ^Config, minimum_version: Version, errors: ^[dynamic]Error, allocator := context.allocator) -> (out: Final(Config), err: mem.Allocator_Error) #optional_allocator_error {
     variables := self.variables[:]
 	
-	lpec_client_data := LPEC_Client_Data {
+	lpec_client_data := _LTEC_Client_Data {
 		errors = errors,
 		error_allocator = allocator,
         variables = &variables,
