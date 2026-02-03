@@ -169,7 +169,8 @@ statement_final :: proc(
         minimum_version = minimum_version
 	}
 
-	_resolve_expr(&self.expr, lpec_client_data)
+	_resolve_expr(&self.left, lpec_client_data)
+	_resolve_expr(&self.right, lpec_client_data)
     for &var in self.variables {
 		_resolve_expr(&var.expr, lpec_client_data)
     }

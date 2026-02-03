@@ -17,7 +17,7 @@ Statement_Variable :: struct {
 
 Statement :: struct {
 	kind: Statement_Kind,
-	expr: Expr,
+	left, right: Expr,
 	variables: [dynamic]Statement_Variable,
 	source_loc: Maybe(runtime.Source_Code_Location)
 }
