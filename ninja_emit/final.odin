@@ -113,7 +113,6 @@ Final :: struct($T: typeid) {
 
 @(private="file") _is_builtin_build_and_rule_name :: proc(name: string, minimum_version: Version) -> bool {
 	return (
-		(name == "console" && version_gte(CONSOLE_POOL_VERSION, minimum_version)) ||
 		(name == "ninja_required_version" && version_gte(VERSION_COMPATIBILITY_VERSION, minimum_version)) ||
 
 		name == "command" ||
