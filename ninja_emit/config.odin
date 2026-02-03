@@ -9,14 +9,8 @@ import "core:fmt"
 
 import "base:intrinsics"
 
-Naming_Conv :: enum u8 {
-	Original,
-	Project_Prefix
-}
-
 Config :: struct {
 	project_name: string,
-	naming_conv: Naming_Conv, // For proper usage, use `config_set_naming_conv` etc. to update this.
 	required_features: Feature_Set, // For proper usage, use `config_try_add_required_feature` etc. to update this.
 	deps: [dynamic]^Config,
 	using _: Statement_Manager,
@@ -69,7 +63,7 @@ config_hash64 :: proc(self: ^Config) -> u64 {
 
 config_name_clashes :: proc(a, b: ^Config) -> bool {
 	if a == b do return false // Prevents incorrect "clashes"
-	return config_hash64(a) == config_hash64(b) && a.naming_conv == b.naming_conv
+	return config_hash64(a) == config_hash64(b)
 }
 
 config_name_clashes_deps :: proc(self: ^Config) -> (bool, ^Config, ^Config) {
@@ -137,27 +131,27 @@ config_set_name :: proc(self: ^Config, name: string) {
 	self.project_name = name
 }
 
-config_set_naming_conv :: proc(self: ^Config, naming_conv: Naming_Conv) {
-	switch naming_conv {
-		case .Original:
-			// Given the condition that more projects will be used, to stop the possibility of clashing between
-			// names, .RULE_SCOPING will try to be enabled.
-			// config_try_add_required_feature(self, .RULE_SCOPING)
-			self.required_features += { .RULE_SCOPING }
-		case .Project_Prefix:
-			// The possibility of clashing between names is far less likely in this case, therefore,
-			// .RULE_SCOPING will try to be disabled.
-			// NOTE(rysah): config_try_remove_required_feature(self, .RULE_SCOPING) - Will be done during the final stage
-	}
-	self.naming_conv = naming_conv
-}
+// config_set_naming_conv :: proc(self: ^Config, naming_conv: Naming_Conv) {
+// 	switch naming_conv {
+// 		case .Original:
+// 			// Given the condition that more projects will be used, to stop the possibility of clashing between
+// 			// names, .RULE_SCOPING will try to be enabled.
+// 			// config_try_add_required_feature(self, .RULE_SCOPING)
+// 			self.required_features += { .RULE_SCOPING }
+// 		case .Project_Prefix:
+// 			// The possibility of clashing between names is far less likely in this case, therefore,
+// 			// .RULE_SCOPING will try to be disabled.
+// 			// NOTE(rysah): config_try_remove_required_feature(self, .RULE_SCOPING) - Will be done during the final stage
+// 	}
+// 	self.naming_conv = naming_conv
+// }
 
-config_add_dep :: proc(self: ^Config, dep: ^Config) -> mem.Allocator_Error {
+config_add_dependency :: proc(self: ^Config, dep: ^Config) -> mem.Allocator_Error {
 	append(&self.deps, dep) or_return
 	return nil
 }
 
-config_remove_dep :: proc(self: ^Config, dep: ^Config) {
+config_remove_dependency :: proc(self: ^Config, dep: ^Config) {
 	if i, found := slice.linear_search(self.deps[:], dep); found {
 		unordered_remove(&self.deps, i)
 	}
