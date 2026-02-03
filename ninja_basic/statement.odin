@@ -7,7 +7,9 @@ import "core:mem"
 Statement_Kind :: enum u8 {
 	Build,
 	Rule,
-	Pool
+	Pool,
+	Phony,
+	Default
 }
 
 Statement :: struct {
@@ -36,6 +38,10 @@ sbprint_statement :: proc(b: ^strings.Builder, s: Statement) -> string {
 				fmt.sbprintfln(b, "  %s = %s", k, v)
 			}
 			return strings.to_string(b^)
+		case .Phony:
+			return fmt.sbprintfln(b, "build %s: phony %s", s.left, s.right)
+		case .Default:
+			return fmt.sbprintfln(b, "default %s", s.left)
 	}
 	return strings.to_string(b^)
 }

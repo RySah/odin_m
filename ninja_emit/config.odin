@@ -5,20 +5,13 @@ import "../ninja_basic"
 import "core:hash"
 import "core:mem"
 import "core:slice"
+import "core:fmt"
+
+import "base:intrinsics"
 
 Naming_Conv :: enum u8 {
 	Original,
-	Mangled
-}
-
-Config_Shared_Virtual_Cache :: struct {
-	dep_tree_is_dirty: bool
-}
-
-Config_Virtual_Cache :: struct {
-	name_dep_tree_clashes: bool,
-	name_dep_tree_clash_a, name_dep_tree_clash_b: ^Config,
-	dep_tree_is_dirty: ^bool
+	Project_Prefix
 }
 
 Config :: struct {
@@ -26,21 +19,14 @@ Config :: struct {
 	naming_conv: Naming_Conv, // For proper usage, use `config_set_naming_conv` etc. to update this.
 	required_features: Feature_Set, // For proper usage, use `config_try_add_required_feature` etc. to update this.
 	deps: [dynamic]^Config,
-	vcache: Config_Virtual_Cache,
-	using _: Statement_Manager
+	using _: Statement_Manager,
+	variables: [dynamic]Statement_Variable
 }
 
-// More "semantically immutable" transmutation of `Config`
-Immut_Config :: distinct [size_of(Config)]u8
-
-config_svcache_init :: proc(self: ^Config_Shared_Virtual_Cache) {
-	self.dep_tree_is_dirty = true
-}
-
-config_init :: proc(self: ^Config, svcache: ^Config_Shared_Virtual_Cache, allocator := context.allocator) -> mem.Allocator_Error {
-	self.vcache.dep_tree_is_dirty = &svcache.dep_tree_is_dirty
+config_init :: proc(self: ^Config, allocator := context.allocator) -> mem.Allocator_Error {
 	self.deps = make([dynamic]^Config, allocator=allocator) or_return
 	statement_manager_init(self, allocator=self.allocator) or_return
+	self.variables = make([dynamic]Statement_Variable) or_return
 	return nil
 }
 
@@ -61,29 +47,16 @@ config_destroy :: proc(self: ^Config) -> mem.Allocator_Error {
 	}
 
 	_remove_ref(self, &self.deps)
-	self.vcache.dep_tree_is_dirty^ = true
 
 	statement_manager_destroy(self) or_return
 	delete(self.deps) or_return
+	delete(self.variables) or_return
 	return nil
 }
 
-config_make :: proc(svcache: ^Config_Shared_Virtual_Cache, allocator := context.allocator) -> (out: Config, err: mem.Allocator_Error) #optional_allocator_error {
-	config_init(&out, svcache, allocator=allocator) or_return
+config_make :: proc(allocator := context.allocator) -> (out: Config, err: mem.Allocator_Error) #optional_allocator_error {
+	config_init(&out, allocator=allocator) or_return
 	return
-}
-
-config_add_dep :: proc(self: ^Config, dep: ^Config) -> mem.Allocator_Error {
-	append(&self.deps, dep) or_return
-	self.vcache.dep_tree_is_dirty^ = true
-	return nil
-}
-
-config_rem_dep :: proc(self: ^Config, dep: ^Config) {
-	if i, found := slice.linear_search(self.deps[:], dep); found {
-		unordered_remove(&self.deps, i)
-		self.vcache.dep_tree_is_dirty^ = true
-	}
 }
 
 config_hash32 :: proc(self: ^Config) -> u32 {
@@ -96,7 +69,7 @@ config_hash64 :: proc(self: ^Config) -> u64 {
 
 config_name_clashes :: proc(a, b: ^Config) -> bool {
 	if a == b do return false // Prevents incorrect "clashes"
-	return config_hash64(a) == config_hash64(b) && a.naming_conv == b.naming_conv && a.naming_conv == .Original
+	return config_hash64(a) == config_hash64(b) && a.naming_conv == b.naming_conv
 }
 
 config_name_clashes_deps :: proc(self: ^Config) -> (bool, ^Config, ^Config) {
@@ -128,45 +101,40 @@ config_name_dep_tree_clashes :: proc(self: ^Config, possibly_cyclical := true) -
 	return false, nil, nil
 }
 
-// Virtual cache aware
-vca_config_name_dep_tree_clashes :: proc(self: ^Config, possibly_cyclical := true) -> (bool, ^Config, ^Config) {
-	if self.vcache.dep_tree_is_dirty^ {
-		self.vcache.dep_tree_is_dirty^ = false
-		self.vcache.name_dep_tree_clashes, self.vcache.name_dep_tree_clash_a, self.vcache.name_dep_tree_clash_b = config_name_dep_tree_clashes(self, possibly_cyclical=possibly_cyclical)
-	}
-	return self.vcache.name_dep_tree_clashes, self.vcache.name_dep_tree_clash_a, self.vcache.name_dep_tree_clash_b
-}
+// config_try_remove_required_feature :: proc(self: ^Config, feature: Feature) {
+// 	if feature == .RULE_SCOPING {
+// 		if len(self.deps) > 0 {
+// 			name_clashes, config_a, config_b := vca_config_name_dep_tree_clashes(self, possibly_cyclical=true /* TODO(rysah): Maybe could make this more deterministic. */)
+// 			if name_clashes {
+// 				return // Cannot remove
+// 			}
+// 		}
+// 	}
+// 	self.required_features -= { feature }
+// }
 
-config_try_remove_required_feature :: proc(self: ^Config, feature: Feature) {
-	if feature == .RULE_SCOPING {
-		if len(self.deps) > 0 {
-			hash_clashes, hash_a, hash_b := vca_config_name_dep_tree_clashes(self, possibly_cyclical=true /* TODO(rysah): Maybe could make this more deterministic. */)
-			if hash_clashes && hash_a.naming_conv == hash_b.naming_conv && hash_a.naming_conv == .Original {
-				return // Cannot remove
-			}
-		}
-	}
-	self.required_features -= { feature }
-}
+// config_try_add_required_feature :: proc(self: ^Config, feature: Feature) {
+// 	self.required_features += { feature }
+// }
 
-config_try_add_required_feature :: proc(self: ^Config, feature: Feature) {
-	self.required_features += { feature }
-}
+// config_try_remove_required_feature_set :: proc(self: ^Config, features: Feature_Set) {
+// 	#unroll for feature in Feature {
+// 		if feature in features {
+// 			config_try_remove_required_feature(self, feature)
+// 		}
+// 	}
+// }
 
-config_try_remove_required_feature_set :: proc(self: ^Config, features: Feature_Set) {
-	#unroll for feature in Feature {
-		if feature in features {
-			config_try_remove_required_feature(self, feature)
-		}
-	}
-}
+// config_try_add_required_feature_set :: proc(self: ^Config, features: Feature_Set) {
+// 	#unroll for feature in Feature {
+// 		if feature in features {
+// 			config_try_add_required_feature(self, feature)
+// 		}
+// 	}
+// }
 
-config_try_add_required_feature_set :: proc(self: ^Config, features: Feature_Set) {
-	#unroll for feature in Feature {
-		if feature in features {
-			config_try_add_required_feature(self, feature)
-		}
-	}
+config_set_name :: proc(self: ^Config, name: string) {
+	self.project_name = name
 }
 
 config_set_naming_conv :: proc(self: ^Config, naming_conv: Naming_Conv) {
@@ -174,11 +142,28 @@ config_set_naming_conv :: proc(self: ^Config, naming_conv: Naming_Conv) {
 		case .Original:
 			// Given the condition that more projects will be used, to stop the possibility of clashing between
 			// names, .RULE_SCOPING will try to be enabled.
-			config_try_add_required_feature(self, .RULE_SCOPING)
-		case .Mangled:
+			// config_try_add_required_feature(self, .RULE_SCOPING)
+			self.required_features += { .RULE_SCOPING }
+		case .Project_Prefix:
 			// The possibility of clashing between names is far less likely in this case, therefore,
 			// .RULE_SCOPING will try to be disabled.
 			// NOTE(rysah): config_try_remove_required_feature(self, .RULE_SCOPING) - Will be done during the final stage
 	}
 	self.naming_conv = naming_conv
+}
+
+config_add_dep :: proc(self: ^Config, dep: ^Config) -> mem.Allocator_Error {
+	append(&self.deps, dep) or_return
+	return nil
+}
+
+config_remove_dep :: proc(self: ^Config, dep: ^Config) {
+	if i, found := slice.linear_search(self.deps[:], dep); found {
+		unordered_remove(&self.deps, i)
+	}
+}
+
+config_add_variable :: proc(self: ^Config, var: Statement_Variable) -> mem.Allocator_Error {
+	append(&self.variables, var) or_return
+	return nil
 }

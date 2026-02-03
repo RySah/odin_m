@@ -38,12 +38,15 @@ String_Expr :: struct {
 	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
+Ident_Expr :: distinct String_Expr
+
 Expr :: union {
-	String_Expr,
 	Lazy_Path_Expr,
 	Expr_Collection,
 	Bin_Expr,
-	Int_Expr
+	Int_Expr,
+	String_Expr,
+	Ident_Expr,
 }
 
 sbprint_bin_expr :: proc(sb: ^strings.Builder, e: Bin_Expr) -> string {
@@ -75,17 +78,22 @@ sbprint_int_expr :: proc(sb: ^strings.Builder, e: Int_Expr) -> string {
 }
 
 sbprint_string_expr :: proc(sb: ^strings.Builder, e: String_Expr) -> string {
+	return fmt.sbprintf(sb, "%q", e.base)
+}
+
+sbprint_ident_expr :: proc(sb: ^strings.Builder, e: Ident_Expr) -> string {
 	strings.write_string(sb, e.base)
 	return strings.to_string(sb^)
 }
 
 sbprint_expr :: proc(sb: ^strings.Builder, e: Expr) -> string {
 	switch internal in e {
-		case Lazy_Path_Expr: sbprint_lazy_path(sb, internal.base)
-		case Expr_Collection: sbprint_expr_collection(sb, internal)
-		case String_Expr: sbprint_string_expr(sb, internal)
-		case Bin_Expr: sbprint_bin_expr(sb, internal)
-		case Int_Expr: sbprint_int_expr(sb, internal)
+		case Lazy_Path_Expr: return sbprint_lazy_path(sb, internal.base)
+		case Expr_Collection: return sbprint_expr_collection(sb, internal)
+		case String_Expr: return sbprint_string_expr(sb, internal)
+		case Bin_Expr: return sbprint_bin_expr(sb, internal)
+		case Int_Expr: return sbprint_int_expr(sb, internal)
+		case Ident_Expr: return sbprint_ident_expr(sb, internal)
 	}
 	return strings.to_string(sb^)
 }
