@@ -50,6 +50,7 @@ lazy_tree_join :: proc(parent, child: ^Lazy_Tree) -> Lazy_Tree {
 	}
 }
 
+
 lazy_path_resolve :: proc(tree: Lazy_Tree, allocator: mem.Allocator) -> 
 (out: string, err: mem.Allocator_Error) #optional_allocator_error {
 	_join : Lazy_Tree_Join_Proc : proc(elems: []string, allocator: mem.Allocator) -> (output: string, err: mem.Allocator_Error) {
@@ -72,7 +73,19 @@ lazy_command_resolve :: proc(tree: Lazy_Tree, allocator := context.allocator) ->
 		_join,
 		allocator=allocator
 	)
-}	
+}
+
+lazy_format_resolve :: proc(tree: Lazy_Tree, allocator := context.allocator) ->
+(out: string, err: mem.Allocator_Error) #optional_allocator_error {
+	_join : Lazy_Tree_Join_Proc : proc(elems: []string, allocator: mem.Allocator) -> (output: string, err: mem.Allocator_Error) {
+		return strings.join(elems, "", allocator=allocator)
+	}
+	return lazy_tree_resolve(
+		tree,
+		_join,
+		allocator=allocator
+	)
+}
 
 sbprint_lazy_path :: proc(sb: ^strings.Builder, tree: Lazy_Tree) -> string {
 	strings.write_string(sb, lazy_path_resolve(tree, allocator=context.temp_allocator))
@@ -81,5 +94,10 @@ sbprint_lazy_path :: proc(sb: ^strings.Builder, tree: Lazy_Tree) -> string {
 
 sbprint_lazy_command :: proc(sb: ^strings.Builder, tree: Lazy_Tree) -> string {
 	strings.write_string(sb, lazy_command_resolve(tree, allocator=context.temp_allocator))
+	return strings.to_string(sb^)
+}
+
+sbprint_lazy_format :: proc(sb: ^strings.Builder, tree: Lazy_Tree) -> string {
+	strings.write_string(sb, lazy_format_resolve(tree, allocator=context.temp_allocator))
 	return strings.to_string(sb^)
 }

@@ -7,12 +7,13 @@ import "base:runtime"
 
 @(private="file") _LTEC_Client_Data :: struct {
 	tree: Lazy_Tree,
-	is_path: bool
+	is_path, is_format: bool
 }
 @(private="file") _LTEC :: Lazy_Tree_Event_Callback {
 	on_leaf = proc(leaf: ^Lazy_Leaf, client_data: rawptr) {
 		client_data := transmute(^_LTEC_Client_Data)client_data
 		is_path := client_data.is_path
+		is_format := client_data.is_format
 		tree := client_data.tree
 		seg := leaf^
 		// Enforcing the `${...}` syntax rather than the less descriptive `$...`
@@ -23,6 +24,11 @@ import "base:runtime"
 				if is_path {
 					fmt.panicf("In path \'%s\', variable access identifier \'%s\' is invalid. Expected format `[a-zA-Z_.][a-zA-Z0-9_.]*`.",
 						lazy_path_resolve(tree, context.temp_allocator),
+						ident
+					)
+				} else if is_format {
+					fmt.panicf("In format \'%s\', variable access identifier \'%s\' is invalid. Expected format `[a-zA-Z_.][a-zA-Z0-9_.]*`.",
+						lazy_format_resolve(tree, context.temp_allocator),
 						ident
 					)
 				} else {
@@ -46,11 +52,19 @@ import "base:runtime"
 			ltec := _LTEC
 			client_data.tree = internal.base
 			client_data.is_path = true
+			client_data.is_format = false
 			lazy_tree_transform(internal.base, ltec, client_data)
 		case Lazy_Command_Expr:
 			ltec := _LTEC
 			client_data.tree = internal.base
 			client_data.is_path = false
+			client_data.is_format = false
+			lazy_tree_transform(internal.base, ltec, client_data)
+		case Lazy_Format_Expr:
+			ltec := _LTEC
+			client_data.tree = internal.base
+			client_data.is_path = false
+			client_data.is_format = true
 			lazy_tree_transform(internal.base, ltec, client_data)
 		case Expr_Collection:
 			for other_e in internal.arr {
@@ -64,48 +78,35 @@ import "base:runtime"
 	}
 }
 
-@(private="file") _is_builtin_build_and_rule_name :: proc(name: string, minimum_version: Version) -> bool {
-	return (
-		(name == "ninja_required_version" && version_gte(VERSION_COMPATIBILITY_VERSION, minimum_version)) ||
+// @(private="file") _is_builtin_build_and_rule_name :: proc(name: string, minimum_version: Version) -> bool {
+// 	return (
+// 		(name == "ninja_required_version" && version_gte(VERSION_COMPATIBILITY_VERSION, minimum_version)) ||
 
-		name == "command" ||
-		((name == "depfile" || name == "deps") && version_gte(DEPS_VERSION, minimum_version)) ||
-		(name == "msvc_deps_prefix" && version_gte(Version{ 1, 5 }, minimum_version)) ||
-		name == "description" ||
-		(name == "dyndep" && version_gte(DYNAMIC_DEP_VERSION, minimum_version)) ||
-		name == "generator" ||
-		name == "in" ||
-		name == "in_newline" ||
-		name == "out" ||
-		name == "restat" ||
-		((name == "rspfile" || name == "rspfile_content") && version_gte(RSP_VERSION, minimum_version)) ||
-		(name == "pool" && version_gte(POOLS_VERSION, minimum_version))
-	)
-}
-@(private="file") _is_builtin_pool_name :: proc(name: string, minimum_version: Version) -> bool {
-	return (
-		(name == "ninja_required_version" && version_gte(VERSION_COMPATIBILITY_VERSION, minimum_version)) ||
+// 		name == "command" ||
+// 		((name == "depfile" || name == "deps") && version_gte(DEPS_VERSION, minimum_version)) ||
+// 		(name == "msvc_deps_prefix" && version_gte(Version{ 1, 5 }, minimum_version)) ||
+// 		name == "description" ||
+// 		(name == "dyndep" && version_gte(DYNAMIC_DEP_VERSION, minimum_version)) ||
+// 		name == "generator" ||
+// 		name == "in" ||
+// 		name == "in_newline" ||
+// 		name == "out" ||
+// 		name == "restat" ||
+// 		((name == "rspfile" || name == "rspfile_content") && version_gte(RSP_VERSION, minimum_version)) ||
+// 		(name == "pool" && version_gte(POOLS_VERSION, minimum_version))
+// 	)
+// }
+// @(private="file") _is_builtin_pool_name :: proc(name: string, minimum_version: Version) -> bool {
+// 	return (
+// 		(name == "ninja_required_version" && version_gte(VERSION_COMPATIBILITY_VERSION, minimum_version)) ||
 
-		name == "depth"
-	)
-}
+// 		name == "depth"
+// 	)
+// }
 
 statement_final :: proc(
     self: ^Statement, minimum_version: Version
 ) {
-	for &var in self.variables {
-        if !var.is_builtin {
-            switch self.kind {
-		    	case .Rule, .Build:
-		    		var.is_builtin = _is_builtin_build_and_rule_name(var.name, minimum_version)
-		    	case .Pool:
-		    		var.is_builtin = _is_builtin_pool_name(var.name, minimum_version)
-                case .Phony: // Nothing is builtin
-                case .Default: // Nothing is builtin
-		    }
-        }
-	}
-
     lpec_client_data := _LTEC_Client_Data {}
 
 	_resolve_expr(&self.left, &lpec_client_data)

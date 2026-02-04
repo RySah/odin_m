@@ -10,15 +10,10 @@ Statement_Manager :: struct {
 	allocator: mem.Allocator
 }
 
-Statement_Variable :: struct {
-	using var: Variable,
-	is_builtin: bool
-}
-
 Statement :: struct {
 	kind: Statement_Kind,
 	left, right: Expr,
-	variables: [dynamic]Statement_Variable,
+	variables: [dynamic]Variable,
 	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
@@ -43,7 +38,7 @@ statement_manager_register_statement :: proc(self: ^Statement_Manager, s: Statem
 }
 
 statement_manager_create_statement :: proc(self: ^Statement_Manager) -> (out: Statement, err: mem.Allocator_Error) #optional_allocator_error {
-	out.variables = make([dynamic]Statement_Variable, allocator=self.allocator) or_return
+	out.variables = make([dynamic]Variable, allocator=self.allocator) or_return
 	return
 }
 
@@ -58,7 +53,7 @@ statement_destroy :: proc(self: ^Statement) -> mem.Allocator_Error {
 	return nil
 }
 
-statement_add_variable :: proc(self: ^Statement, var: Statement_Variable) -> mem.Allocator_Error {
+statement_add_variable :: proc(self: ^Statement, var: Variable) -> mem.Allocator_Error {
 	append(&self.variables, var) or_return
 	return nil
 }

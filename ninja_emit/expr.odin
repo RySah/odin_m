@@ -26,6 +26,7 @@ Expr_Collection :: struct {
 }
 Lazy_Path_Expr :: distinct _Lazy_Tree_Expr
 Lazy_Command_Expr :: distinct _Lazy_Tree_Expr
+Lazy_Format_Expr :: distinct _Lazy_Tree_Expr
 
 Int_Expr :: struct {
 	base: union { i64, u64 },
@@ -38,6 +39,7 @@ String_Expr :: struct {
 Expr :: union {
 	Lazy_Path_Expr,
 	Lazy_Command_Expr,
+	Lazy_Format_Expr,
 	Expr_Collection,
 	Bin_Expr,
 	Int_Expr,
@@ -81,6 +83,7 @@ sbprint_expr :: proc(sb: ^strings.Builder, e: Expr) -> string {
 	switch internal in e {
 		case Lazy_Path_Expr:     return sbprint_lazy_path(sb, internal.base)
 		case Lazy_Command_Expr:  return sbprint_lazy_command(sb, internal.base)
+		case Lazy_Format_Expr:   return sbprint_lazy_format(sb, internal.base)
 		case Expr_Collection:    return sbprint_expr_collection(sb, internal)
 		case String_Expr:        return sbprint_string_expr(sb, internal)
 		case Bin_Expr:           return sbprint_bin_expr(sb, internal)

@@ -13,12 +13,12 @@ Config :: struct {
 	project_name: string,
 	required_features: Feature_Set,
 	using _: Statement_Manager,
-	variables: [dynamic]Statement_Variable
+	variables: [dynamic]Variable
 }
 
 config_init :: proc(self: ^Config, allocator := context.allocator) -> mem.Allocator_Error {
 	statement_manager_init(self, allocator=self.allocator) or_return
-	self.variables = make([dynamic]Statement_Variable) or_return
+	self.variables = make([dynamic]Variable) or_return
 	return nil
 }
 
