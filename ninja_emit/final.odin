@@ -69,8 +69,7 @@ import "base:runtime"
 		(name == "ninja_required_version" && version_gte(VERSION_COMPATIBILITY_VERSION, minimum_version)) ||
 
 		name == "command" ||
-		(name == "depfile" && version_gte(DEPS_VERSION, minimum_version)) ||
-		(name == "deps" && version_gte(DEPS_VERSION, minimum_version)) ||
+		((name == "depfile" || name == "deps") && version_gte(DEPS_VERSION, minimum_version)) ||
 		(name == "msvc_deps_prefix" && version_gte(Version{ 1, 5 }, minimum_version)) ||
 		name == "description" ||
 		(name == "dyndep" && version_gte(DYNAMIC_DEP_VERSION, minimum_version)) ||
@@ -79,8 +78,7 @@ import "base:runtime"
 		name == "in_newline" ||
 		name == "out" ||
 		name == "restat" ||
-		name == "rspfile" ||
-		name == "rspfile_content" ||
+		((name == "rspfile" || name == "rspfile_content") && version_gte(RSP_VERSION, minimum_version)) ||
 		(name == "pool" && version_gte(POOLS_VERSION, minimum_version))
 	)
 }

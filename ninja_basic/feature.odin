@@ -8,7 +8,8 @@ Feature :: enum u8 {
 	IMPLICIT_OUTPUTS,
 	VALIDATIONS,
 	DYNAMIC_DEP,
-	RULE_SCOPING
+	RULE_SCOPING,
+	RSP
 }
 
 Feature_Set :: bit_set[Feature]
@@ -33,6 +34,8 @@ feature_set_get_required_version :: proc(s: Feature_Set) -> (out: Version) {
 					out = version_gt(DYNAMIC_DEP_VERSION, out) ? DYNAMIC_DEP_VERSION : out
 				case .RULE_SCOPING:
 					out = version_gt(RULE_SCOPING_VERSION, out) ? DYNAMIC_DEP_VERSION : out
+				case .RSP:
+					out = version_gt(RSP_VERSION, out) ? RSP_VERSION : out
 			}
 		}
 	}
@@ -59,6 +62,8 @@ version_get_feature_set :: proc(v: Version) -> (out: Feature_Set) {
 				if version_lte(DYNAMIC_DEP_VERSION, v) do out |= { feature }
 			case .RULE_SCOPING:
 				if version_lte(RULE_SCOPING_VERSION, v) do out |= { feature }
+			case .RSP:
+				if version_lte(RSP_VERSION, v) do out |= { feature }
 		}
 	}
 	return

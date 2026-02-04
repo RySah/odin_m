@@ -25,5 +25,6 @@ IMPLICIT_OUTPUTS_VERSION :: Version{ 1, 7 }
 VALIDATIONS_VERSION :: Version{ 1, 11 }
 DYNAMIC_DEP_VERSION :: Version{ 1, 10 }
 RULE_SCOPING_VERSION :: Version{ 1, 6 }
+RSP_VERSION :: Version{ 1, 1 }
 
 MAX_VERSION :: Version{ 255, 255 }
