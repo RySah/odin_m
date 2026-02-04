@@ -5,10 +5,6 @@ import "core:fmt"
 
 import "base:runtime"
 
-Final :: struct($T: typeid) {
-    _: [size_of(T)]u8
-}
-
 @(private="file") _LTEC_Client_Data :: struct {
 	tree: Lazy_Tree,
 	is_path: bool
@@ -73,7 +69,7 @@ Final :: struct($T: typeid) {
 		(name == "ninja_required_version" && version_gte(VERSION_COMPATIBILITY_VERSION, minimum_version)) ||
 
 		name == "command" ||
-		( name == "depfile" && version_gte(DEPS_VERSION, minimum_version)) ||
+		(name == "depfile" && version_gte(DEPS_VERSION, minimum_version)) ||
 		(name == "deps" && version_gte(DEPS_VERSION, minimum_version)) ||
 		(name == "msvc_deps_prefix" && version_gte(Version{ 1, 5 }, minimum_version)) ||
 		name == "description" ||
@@ -98,7 +94,7 @@ Final :: struct($T: typeid) {
 
 statement_final :: proc(
     self: ^Statement, minimum_version: Version
-) -> (out: Final(Statement)) {
+) {
 	for &var in self.variables {
         if !var.is_builtin {
             switch self.kind {
@@ -119,15 +115,12 @@ statement_final :: proc(
     for &var in self.variables {
 		_resolve_expr(&var.expr, &lpec_client_data)
     }
-
-	return transmute(Final(Statement))(self^)
 }
 
 config_final :: proc(
 	self: ^Config, minimum_version: Version
-) -> (out: Final(Config)) {
+) {
 	for &statement in self.statements {
 		statement_final(&statement, minimum_version)
 	}
-	return transmute(Final(Config))(self^)
 }
