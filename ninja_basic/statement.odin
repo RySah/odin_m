@@ -3,6 +3,7 @@ package ninja_basic
 import "core:strings"
 import "core:fmt"
 import "core:mem"
+import "core:io"
 
 Statement_Kind :: enum u8 {
 	Build,
@@ -18,32 +19,33 @@ Statement :: struct {
 	variables: map[string]string
 }
 
-sbprint_statement :: proc(b: ^strings.Builder, s: Statement) -> string {
-	switch s.kind {
+wprint_statement :: proc(writer: io.Writer, self: ^Statement) {
+	switch self.kind {
 		case .Build:
-			fmt.sbprintfln(b, "build %s : %s", s.left, s.right)
-			for k, v in s.variables {
-				fmt.sbprintfln(b, "  %s = %s", k, v)
+			fmt.wprintfln(writer, "build %s : %s", self.left, self.right)
+			for k, v in self.variables {
+				fmt.wprintfln(writer, "  %s = %s", k, v)
 			}
-			return strings.to_string(b^)
 		case .Rule:
-			fmt.sbprintfln(b, "rule %s", s.left)
-			for k, v in s.variables {
-				fmt.sbprintfln(b, "  %s = %s", k, v)
+			fmt.wprintfln(writer, "rule %s", self.left)
+			for k, v in self.variables {
+				fmt.wprintfln(writer, "  %s = %s", k, v)
 			}
-			return strings.to_string(b^)
 		case .Pool:
-			fmt.sbprintfln(b, "pool %s", s.left)
-			for k, v in s.variables {
-				fmt.sbprintfln(b, "  %s = %s", k, v)
+			fmt.wprintfln(writer, "pool %s", self.left)
+			for k, v in self.variables {
+				fmt.wprintfln(writer, "  %s = %s", k, v)
 			}
-			return strings.to_string(b^)
 		case .Phony:
-			return fmt.sbprintfln(b, "build %s: phony %s", s.left, s.right)
+			fmt.wprintfln(writer, "build %s: phony %s", self.left, self.right)
 		case .Default:
-			return fmt.sbprintfln(b, "default %s", s.left)
+			fmt.wprintfln(writer, "default %s", self.left)
 	}
-	return strings.to_string(b^)
+}
+
+sbprint_statement :: proc(sb: ^strings.Builder, self: ^Statement) -> string {
+	wprint_statement(strings.to_writer(sb), self)
+	return strings.to_string(sb^)
 }
 
 statement_init :: proc(s: ^Statement, allocator := context.allocator) {

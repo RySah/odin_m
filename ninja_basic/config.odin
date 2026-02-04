@@ -3,6 +3,7 @@ package ninja_basic
 import "core:strings"
 import "core:fmt"
 import "core:mem"
+import "core:io"
 
 Config :: struct {
 	required_version: Version,
@@ -10,17 +11,21 @@ Config :: struct {
 	statements: [dynamic]Statement
 }
 
-sbprint_config :: proc(b: ^strings.Builder, cnf: Config) -> string {
-	if version_gte(cnf.required_version, VERSION_COMPATIBILITY_VERSION) {
-		fmt.sbprintfln(b, "ninja_required_version = %d.%d", cnf.required_version.x, cnf.required_version.y)
+wprint_config :: proc(writer: io.Writer, self: ^Config) {
+	if version_gte(self.required_version, VERSION_COMPATIBILITY_VERSION) {
+		fmt.wprintfln(writer, "ninja_required_version = %d.%d", self.required_version.x, self.required_version.y)
 	}
-	for k, v in cnf.variables {
-		fmt.sbprintfln(b, "%s = %s", k, v)
+	for k, v in self.variables {
+		fmt.wprintfln(writer, "%s = %s", k, v)
 	}
-	for &statement in cnf.statements {
-		sbprint_statement(b, statement)
+	for &statement in self.statements {
+		wprint_statement(writer, &statement)
 	}
-	return strings.to_string(b^)
+}
+
+sbprint_config :: proc(sb: ^strings.Builder, self: ^Config) -> string {
+	wprint_config(strings.to_writer(sb), self)
+	return strings.to_string(sb^)
 }
 
 config_init :: proc(self: ^Config, allocator := context.allocator) -> mem.Allocator_Error {
