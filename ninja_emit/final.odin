@@ -9,85 +9,20 @@ Final :: struct($T: typeid) {
 }
 
 @(private="file") _LTEC_Client_Data :: struct {
-	errors: ^[dynamic]Error,
-	error_allocator: mem.Allocator,
-	source_loc: Maybe(runtime.Source_Code_Location),
-	original: ^Lazy_Tree,
-	variables: ^[]Statement_Variable,
-	kind: Statement_Kind,
-	minimum_version: Version,
-	is_path: bool
+	error: Error
 }
 @(private="file") _LTEC :: Lazy_Tree_Event_Callback {
 	on_leaf = proc(leaf: ^Lazy_Leaf, client_data: rawptr) {
 		client_data := transmute(^_LTEC_Client_Data)client_data
-		errors := client_data.errors
-		error_allocator := client_data.error_allocator
-		source_loc := client_data.source_loc
-		original := client_data.original
-		variables := client_data.variables
-		kind := client_data.kind
-		minimum_version := client_data.minimum_version
-		is_path := client_data.is_path
+		error_output := &client_data.error
 		seg := leaf^
 		// Enforcing the `${...}` syntax rather than the less descriptive `$...`
 		if len(seg) > len("${}") && seg[0] == '$' && seg[1] == '{' && seg[len(seg)-1] == '}' {
 			ident_seg := seg[2:len(seg)-1]
 			ident := transmute(string)ident_seg
 			if !is_ident(ident) {
-				append(errors,
-					variable_access_ident_syntax_error_in_lazy_tree(
-						original^, ident, 
-						is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
-						source_loc=source_loc, allocator=error_allocator
-					)
-				)
-			} else { // is_ident
-				switch kind {
-					case .Rule, .Build:
-						if !_is_builtin_build_and_rule_name(ident, minimum_version) {
-							found := false
-							for &var in variables^ {
-								if var.is_builtin do continue
-								if ident == var.name {
-									found = true
-									break
-								}
-							}
-							if !found {
-								append(errors,
-									variable_access_ident_logic_error_in_lazy_tree(
-										original^, ident, 
-										is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
-										source_loc=source_loc, allocator=error_allocator
-									)
-								)
-							}
-						}
-					case .Pool:
-						if !_is_builtin_pool_name(ident, minimum_version) {
-							found := false
-							for &var in variables^ {
-								if var.is_builtin do continue
-								if ident == var.name {
-									found = true
-									break
-								}
-							}
-							if !found {
-								append(errors,
-									variable_access_ident_logic_error_in_lazy_tree(
-										original^, ident, 
-										is_path ? transmute(Lazy_Tree_Resolve_Proc)lazy_path_resolve : transmute(Lazy_Tree_Resolve_Proc)lazy_command_resolve,
-										source_loc=source_loc, allocator=error_allocator
-									)
-								)
-							}
-						}
-					case .Phony: // Nothing to do.
-					case .Default: // Nothing to do.
-						
-				}
+				error_output^ = General_Error.Invalid_Variable_Access_Ident
+				return
 			}
 		}
 	},
@@ -95,37 +30,29 @@ Final :: struct($T: typeid) {
 }
 
 // Mainly identifies syntax errors in lazy paths, and flags variables that are builtin based-off the minimum_version.
-@(private="file") _resolve_expr :: proc(e: ^Expr, client_data: _LTEC_Client_Data) {
-	client_data := client_data
-	switch &internal in e {
+@(private="file") _resolve_expr :: proc(
+	expr: ^Expr, client_data: ^_LTEC_Client_Data
+) -> Error {
+	switch &internal in expr^ {
 		case Lazy_Path_Expr:
-			lazy_tree := &internal.base
-
-			client_data.source_loc = internal.source_loc
-			client_data.original = lazy_tree
-			client_data.is_path = true
-
 			ltec := _LTEC
-			lazy_tree_transform(lazy_tree^, ltec, &client_data)
+			lazy_tree_transform(internal.base, ltec, client_data)
+			if client_data.error != nil do return client_data.error
 		case Lazy_Command_Expr:
-			lazy_tree := &internal.base
-
-			client_data.source_loc = internal.source_loc
-			client_data.original = lazy_tree
-			client_data.is_path = false
-
 			ltec := _LTEC
-			lazy_tree_transform(lazy_tree^, ltec, &client_data)
+			lazy_tree_transform(internal.base, ltec, client_data)
+			if client_data.error != nil do return client_data.error
 		case Expr_Collection:
 			for other_e in internal.arr {
-				_resolve_expr(other_e, client_data)
+				_resolve_expr(other_e, client_data) or_return
 			}
 		case Bin_Expr:
-			_resolve_expr(internal.left, client_data)
-			_resolve_expr(internal.right, client_data)
+			_resolve_expr(internal.left, client_data) or_return
+			_resolve_expr(internal.right, client_data) or_return
 		case Int_Expr:
 		case String_Expr:
 	}
+	return nil
 }
 
 @(private="file") _is_builtin_build_and_rule_name :: proc(name: string, minimum_version: Version) -> bool {
@@ -157,11 +84,8 @@ Final :: struct($T: typeid) {
 }
 
 statement_final :: proc(
-    self: ^Statement, minimum_version: Version, 
-    errors: ^[dynamic]Error,
-    extra_vars: ..Statement_Variable,
-    allocator := context.allocator) -> 
-(out: Final(Statement), err: mem.Allocator_Error) #optional_allocator_error {
+    self: ^Statement, minimum_version: Version
+) -> (out: Final(Statement), err: Error) {
 	for &var in self.variables {
         if !var.is_builtin {
             switch self.kind {
@@ -175,40 +99,26 @@ statement_final :: proc(
         }
 	}
 
-    variables := make([]Statement_Variable, len(extra_vars)+len(self.variables), allocator=context.temp_allocator) or_return
-    copy(variables, extra_vars)
-    copy(variables[len(extra_vars):], self.variables[:])
+    lpec_client_data := _LTEC_Client_Data {}
 
-    lpec_client_data := _LTEC_Client_Data {
-		errors = errors,
-		error_allocator = allocator,
-        variables = &variables,
-        kind = self.kind,
-        minimum_version = minimum_version
-	}
-
-	_resolve_expr(&self.left, lpec_client_data)
-	_resolve_expr(&self.right, lpec_client_data)
+	_resolve_expr(&self.left, &lpec_client_data) or_return
+	_resolve_expr(&self.right, &lpec_client_data) or_return
     for &var in self.variables {
-		_resolve_expr(&var.expr, lpec_client_data)
+		_resolve_expr(&var.expr, &lpec_client_data) or_return
     }
 
 	return transmute(Final(Statement))(self^), nil
 }
 
-config_final :: proc(self: ^Config, minimum_version: Version, errors: ^[dynamic]Error, allocator := context.allocator) -> (out: Final(Config), err: mem.Allocator_Error) #optional_allocator_error {
+config_final :: proc(
+	self: ^Config, minimum_version: Version
+) -> (out: Final(Config), err: Error) {
     variables := self.variables[:]
 	
-	lpec_client_data := _LTEC_Client_Data {
-		errors = errors,
-		error_allocator = allocator,
-        variables = &variables,
-        kind = .Phony, // So that it'll do nothing.
-        minimum_version = minimum_version
-	}
+	lpec_client_data := _LTEC_Client_Data {}
 	
 	for &statement in self.statements {
-		statement_final(&statement, minimum_version, errors, ..self.variables[:], allocator=allocator) or_return
+		statement_final(&statement, minimum_version) or_return
 	}
 	return transmute(Final(Config))(self^), nil
 }

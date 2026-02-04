@@ -14,30 +14,25 @@ Bin_Expr_Kind :: enum u8 {
 
 Bin_Expr :: struct {
 	kind: Bin_Expr_Kind,
-	left, right: ^Expr,
-	source_loc: Maybe(runtime.Source_Code_Location)
+	left, right: ^Expr
 }
 
 Expr_Collection :: struct {
 	arr: []^Expr,
-	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
 @(private="file") _Lazy_Tree_Expr :: struct {
 	base: Lazy_Tree,
-	source_loc: Maybe(runtime.Source_Code_Location)
 }
 Lazy_Path_Expr :: distinct _Lazy_Tree_Expr
 Lazy_Command_Expr :: distinct _Lazy_Tree_Expr
 
 Int_Expr :: struct {
 	base: union { i64, u64 },
-	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
 String_Expr :: struct {
 	base: string,
-	source_loc: Maybe(runtime.Source_Code_Location)
 }
 
 Expr :: union {

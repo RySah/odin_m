@@ -132,16 +132,81 @@ config_add_variable :: proc(self: ^Config, var: Statement_Variable) -> mem.Alloc
 }
 
 config_resolve_required_features :: proc(self: ^Config, skip := Feature_Set{}) -> mem.Allocator_Error {
-	if .POOLS not_in skip {
-		for &stmt in self.statements {
-			if stmt.kind == .Pool {
-				self.required_features += { .POOLS }
-				break
+	_get_required_features_for_expr :: proc(expr: ^Expr, features: ^Feature_Set, skip: Feature_Set, is_output: bool) {
+		#partial switch &internal in expr^ {
+			case Expr_Collection:
+				for expr_item in internal.arr {
+					_get_required_features_for_expr(expr_item, features, skip, is_output)
+				}
+			case Bin_Expr:
+				#partial switch internal.kind {
+					case .Implicit:
+						if .IMPLICIT_OUTPUTS not_in skip && is_output {
+							features^ += { .IMPLICIT_OUTPUTS }
+						}
+					case .Validation:
+						features^ += { .VALIDATIONS } if .VALIDATIONS not_in skip else {} 
+				}
+				_get_required_features_for_expr(internal.left, features, skip, is_output)
+				_get_required_features_for_expr(internal.right, features, skip, is_output)
+		}
+	}
+	
+	console_pool_is_user_defined := false
+	
+	for &stmt in self.statements {
+		if stmt.kind == .Pool {
+			#type_assert {
+				if str_expr, is_str_expr := stmt.left.(String_Expr); is_str_expr {
+					if str_expr.base == "console" {
+						console_pool_is_user_defined = true
+					} 
+				}
 			}
+			self.required_features += { .POOLS } if .POOLS not_in skip else {}
+		} else if stmt.kind == .Build {
+			if .CONSOLE_POOL not_in skip && .CONSOLE_POOL not_in self.required_features {
+				for &var in stmt.variables {
+					if var.name == "pool" {
+						#type_assert {
+							if str_expr, is_str_expr := stmt.left.(String_Expr); is_str_expr {
+								if str_expr.base == "console" && !console_pool_is_user_defined {
+									self.required_features += { .CONSOLE_POOL }
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+		} else if stmt.kind == .Rule {
+			if .CONSOLE_POOL not_in skip && .CONSOLE_POOL not_in self.required_features {
+				for &var in stmt.variables {
+					if var.name == "pool" {
+						#type_assert {
+							if str_expr, is_str_expr := stmt.left.(String_Expr); is_str_expr {
+								if str_expr.base == "console" && !console_pool_is_user_defined {
+									self.required_features += { .CONSOLE_POOL }
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if stmt.kind == .Build || stmt.kind == .Rule {
+			_get_required_features_for_expr(&stmt.left, &self.required_features, skip, false)
+			_get_required_features_for_expr(&stmt.right, &self.required_features, skip, true)
 		}
 	}
 
+	return nil
+}
 
-
+config_resolve_all_features :: proc(self: ^Config, skip := Feature_Set{}) -> mem.Allocator_Error {
+	config_resolve_required_features(self, skip=skip) or_return
+	self.required_features = ninja_basic.version_get_features(ninja_basic.features_get_required_version(self.required_features))
 	return nil
 }
