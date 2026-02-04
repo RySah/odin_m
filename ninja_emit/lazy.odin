@@ -16,7 +16,6 @@ Lazy_Tree :: union {
 	Lazy_Branch
 }
 
-Lazy_Tree_Resolve_Proc :: #type proc(Lazy_Tree, mem.Allocator) -> (string, mem.Allocator_Error)
 Lazy_Tree_Join_Proc :: #type proc([]string, mem.Allocator) -> (string, mem.Allocator_Error)
 
 lazy_tree_resolve :: proc(tree: Lazy_Tree, join_proc: Lazy_Tree_Join_Proc, allocator := context.allocator) -> 
