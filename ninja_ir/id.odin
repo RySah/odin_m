@@ -4,6 +4,8 @@ import "core:mem"
 
 ID :: distinct u32
 
+Invalid_ID : ID : 0
+
 ID_Handle :: struct {
     id: ID
 }
@@ -14,6 +16,7 @@ ID_Generator :: struct {
 }
 
 id_generator_init :: proc(self: ^ID_Generator, allocator := context.allocator) -> mem.Allocator_Error {
+    self.curr_id = Invalid_ID + 1 // Starting off with a valid ID
     self.freed_ids = make([dynamic]ID, allocator=allocator) or_return
     return nil
 }
@@ -41,10 +44,11 @@ assign_id_handle :: proc(self: ^ID_Generator, out: ^ID_Handle) {
 }
 assign_id :: proc{assign_id_object,assign_id_handle}
 
-free_id_object :: proc(self: ^ID_Generator, id: ID) {
+free_id_object :: proc(self: ^ID_Generator, id: ID, loc := #caller_location) {
+    when !ODIN_NO_BOUNDS_CHECK do ensure(id != Invalid_ID, loc=loc)
     append(&self.freed_ids, id)
 }
-free_id_handle :: proc(self: ^ID_Generator, handle: ^ID_Handle) {
-    free_id_object(self, handle.id)
+free_id_handle :: proc(self: ^ID_Generator, handle: ^ID_Handle, loc := #caller_location) {
+    free_id_object(self, handle.id, loc=loc)
 }
 free_id :: proc{free_id_object,free_id_handle}

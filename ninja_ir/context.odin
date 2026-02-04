@@ -17,4 +17,3 @@ ir_context_destroy :: proc(self: ^IR_Context) -> mem.Allocator_Error {
     id_generator_destroy(self) or_return
     return nil
 }
-
