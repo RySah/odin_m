@@ -3,7 +3,16 @@ package ninja_ir
 Command_Token :: union {
     Special_Variable,
     string,
-    ^File
+    ^File,
+    Concat
 }
 
-Command :: distinct [dynamic]Command_Token
+// { items = { Special_Variable.Out, ".rsp" }, sep = "" }
+Concat :: struct {
+    items: [dynamic]Command_Token,
+    sep: string
+}
+
+Command :: distinct Concat
+
+
