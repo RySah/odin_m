@@ -4,12 +4,15 @@ import "core:mem"
 
 IR_Context :: struct {
     limits: Limits,
-    using id_gen: ID_Generator
+    using id_gen: ID_Generator,
+
+    allocator: mem.Allocator
 }
 
 ir_context_init :: proc(self: ^IR_Context, allocator := context.allocator) -> mem.Allocator_Error {
     self.limits = get_limits()
     id_generator_init(self, allocator=allocator) or_return
+    self.allocator = allocator
     return nil
 }
 

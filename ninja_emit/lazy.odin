@@ -50,7 +50,6 @@ lazy_tree_join :: proc(parent, child: ^Lazy_Tree) -> Lazy_Tree {
 	}
 }
 
-
 lazy_path_resolve :: proc(tree: Lazy_Tree, allocator: mem.Allocator) -> 
 (out: string, err: mem.Allocator_Error) #optional_allocator_error {
 	_join : Lazy_Tree_Join_Proc : proc(elems: []string, allocator: mem.Allocator) -> (output: string, err: mem.Allocator_Error) {
