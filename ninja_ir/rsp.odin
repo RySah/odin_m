@@ -11,5 +11,4 @@ default_win32_response_file_formatter_proc : Response_File_Formatter_Proc : proc
     return fmt.aprintf("@%s", path, allocator=allocator)
 }
 
-// NOTE(rysah): Format doesnt only apply to windows systems, and will may work for other systems.
 default_response_file_formatter_proc :: default_win32_response_file_formatter_proc

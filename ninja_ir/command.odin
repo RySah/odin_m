@@ -6,10 +6,10 @@ Command_Token :: union {
     Special_Variable,
     string,
     ^File,
+    ^Exec,
     Concat
 }
 
-// { items = { Special_Variable.Out, ".rsp" }, sep = "" }
 Concat :: struct {
     items: []Command_Token,
     sep: string
