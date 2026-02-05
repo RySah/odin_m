@@ -1,15 +1,9 @@
 package ninja_ir
 
-Lazy_Leaf :: union {
+Command_Token :: union {
+    Special_Variable,
     string,
-    ID, // Access ID
-    Special_Variable
+    ^File
 }
-Lazy_Branch :: struct {
-    components: [2]^Lazy_Tree,
-    sep: string
-}
-Lazy_Tree :: union {
-	Lazy_Leaf,
-	Lazy_Branch
-}
+
+Command :: distinct [dynamic]Command_Token
