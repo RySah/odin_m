@@ -24,3 +24,22 @@ special_variable_len :: proc(v: Special_Variable) -> int {
     }
     unreachable()
 }
+
+special_variable_string :: proc(v: Special_Variable) -> string {
+    switch v {
+        case .Command: return "$command"
+        case .Dep_File: return "$depfile"
+        case .Deps: return "$deps"
+        case .Desc: return "$desc"
+        case .Dynamic_Dep: return "$dyndep"
+        case .In: return "$in"
+        case .In_Newline: return "$in_newline"
+        case .Out: return "$out"
+    }
+    unreachable()
+}
+
+special_variable_string_no_prefix :: proc(v: Special_Variable) -> string {
+    return special_variable_string(v)[1:]
+}
+
