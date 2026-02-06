@@ -123,6 +123,12 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
                 expr=description_expr
             }) or_return
         }
+        if pool_impl, has_pool := rule.pool.?; has_pool {
+            append(&stmt.variables, ninja_emit.Variable{
+                name="pool",
+                expr=pool_impl.name
+            }) or_return
+        }
         ninja_emit.register_statement(&out, stmt) or_return
     }
 
