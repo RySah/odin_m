@@ -128,6 +128,12 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
                 expr=pool_impl.name
             }) or_return
         }
+        for k, &v in rule.variables {
+            append(&stmt.variables, ninja_emit.Variable{
+                name = k,
+                expr = _variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
+            })
+        }
         ninja_emit.register_statement(&out, stmt) or_return
     }
 

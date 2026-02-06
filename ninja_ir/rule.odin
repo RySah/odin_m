@@ -9,14 +9,14 @@ Rule :: struct {
     pool: Maybe(Pool),
     command: Command,
     desc: Description,
-    //variables: map[string]Variable_Expr
+    variables: map[string]Variable_Expr
 }
 
 @private rule_make :: proc(ctx: ^IR_Context) -> (out: ^Rule, err: mem.Allocator_Error) #optional_allocator_error {
     out = new(Rule, allocator=vmem.arena_allocator(&ctx.arena)) or_return
     out.command = make(Command, allocator=vmem.arena_allocator(&ctx.arena)) or_return
     out.desc = make(Description, allocator=vmem.arena_allocator(&ctx.arena)) or_return
-    //out.variables = make(map[string]Variable_Expr, allocator=vmem.arena_allocator(&ctx.arena))
+    out.variables = make(map[string]Variable_Expr, allocator=vmem.arena_allocator(&ctx.arena))
     append(&ctx.rules, out) or_return
     return
 }
