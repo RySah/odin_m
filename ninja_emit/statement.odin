@@ -51,7 +51,7 @@ statement_destroy :: proc(self: ^Statement) -> mem.Allocator_Error {
 	return nil
 }
 
-statement_add_variable :: proc(self: ^Statement, var: Variable) -> mem.Allocator_Error {
-	append(&self.variables, var) or_return
-	return nil
-}
+// statement_add_variable :: proc(self: ^Statement, var: Variable) -> mem.Allocator_Error {
+// 	append(&self.variables, var) or_return
+// 	return nil
+// }

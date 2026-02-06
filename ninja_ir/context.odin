@@ -8,6 +8,7 @@ IR_Context :: struct {
     files: [dynamic]^File,
     rules: [dynamic]^Rule,
     execs: [dynamic]^Exec,
+    variables: map[string]Variable_Expr,
     arena: vmem.Arena
 }
 
@@ -18,6 +19,7 @@ ir_context_init :: proc(self: ^IR_Context) -> mem.Allocator_Error {
     self.files = make([dynamic]^File, allocator=allocator) or_return
     self.rules = make([dynamic]^Rule, allocator=allocator) or_return
     self.execs = make([dynamic]^Exec, allocator=allocator) or_return
+    self.variables = make(map[string]Variable_Expr, allocator=allocator)
     return nil
 }
 

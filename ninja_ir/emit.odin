@@ -20,24 +20,23 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
     out.project_name = project_name
 
     pools: []Pool
-
-    when async.IS_SUPPORTED {
+    when async.IS_SUPPORTED {{
         async_dispatcher: async.Dispatcher
-        async.init(&async_dispatcher, 4) or_return
+        async.init(&async_dispatcher, 2) or_return
         defer async.destroy(&async_dispatcher)
 
         pools_promise := async.run(&async_dispatcher,
             proc(params: ..any) -> (out: struct{ items: []Pool, err: mem.Allocator_Error }) {
-                ctx: ^IR_Context
+                self: ^IR_Context
                 allocator: runtime.Allocator
                 #type_assert {
-                    ctx = params[0].(^IR_Context)
+                    self = params[0].(^IR_Context)
                     allocator = params[1].(runtime.Allocator)
                 }
 
                 pool_map := make(map[string]Pool, allocator=context.temp_allocator)
 
-                for rule in ctx.rules {
+                for rule in self.rules {
                     if pool_impl, assigned_pool := rule.pool.?; assigned_pool {
                         if pool_impl.name in pool_map do continue
                         pool_map[pool_impl.name] = pool_impl
@@ -47,16 +46,37 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
                 out.items, out.err = slice.map_values(pool_map, allocator=allocator)
                 return
             },
-            self, context.allocator
+            self, context.temp_allocator,
+            allocator=context.temp_allocator
         ) or_return
-        defer free(pools_promise)
+
+        variables_assign_promise := async.run(&async_dispatcher,
+            proc(params: ..any) {
+                self: ^IR_Context
+                out: ^ninja_emit.Config
+                #type_assert {
+                    self = params[0].(^IR_Context)
+                    out = params[1].(^ninja_emit.Config)
+                }
+
+                for k, &v in self.variables {
+                    append(&out.variables, ninja_emit.Variable{
+                        name = k,
+                        expr = _variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
+                    })
+                }
+            },
+            self, &out,
+            allocator=context.temp_allocator
+        ) or_return
 
         pools_result := async.await(pools_promise)
         if pools_result.err != nil do return out, pools_result.err
 
+        async.await(variables_assign_promise)
+
         pools = pools_result.items
-        defer delete(pools)
-    } else {{
+    }} else {{
         pool_map := make(map[string]Pool, allocator=context.temp_allocator)
 
         for rule in self.rules {
@@ -67,13 +87,20 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
         }
 
         pools = slice.map_values(pool_map, allocator=context.temp_allocator) or_return
+
+        for k, &v in self.variables {
+            append(&out.variables, ninja_emit.Variable{
+                name = k,
+                expr = _variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
+            })
+        }
     }}
 
     for &pool in pools {
         stmt := ninja_emit.create_statement(&out) or_return
         stmt.kind = .Pool
         stmt.left = pool.name
-        ninja_emit.statement_add_variable(&stmt, ninja_emit.Variable{
+        append(&stmt.variables, ninja_emit.Variable{
             name="depth",
             expr=ninja_emit.to_int_expr(pool.depth)
         }) or_return
@@ -85,13 +112,13 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
         stmt.kind = .Rule
         stmt.left = rule.name
         command_expr := _command_to_emit_expr(&rule.command, allocator=vmem.arena_allocator(&self.arena)) or_return
-        ninja_emit.statement_add_variable(&stmt, ninja_emit.Variable{
+        append(&stmt.variables, ninja_emit.Variable{
             name="command",
             expr=command_expr
         }) or_return
         if len(rule.desc) > 0 {
             description_expr := _command_to_emit_expr(transmute(^Command)(&rule.desc), allocator=vmem.arena_allocator(&self.arena)) or_return
-            ninja_emit.statement_add_variable(&stmt, ninja_emit.Variable{
+            append(&stmt.variables, ninja_emit.Variable{
                 name="description",
                 expr=description_expr
             }) or_return

@@ -10,7 +10,8 @@ Command_Token :: union {
     string,
     ^File,
     ^Exec,
-    Concat
+    Concat,
+    Variable_Access
 }
 
 Concat :: struct {
@@ -36,6 +37,8 @@ Command :: distinct [dynamic]Command_Token
                 string_items[i] = _command_token_to_string(&item, allocator=context.temp_allocator) or_return
             }
             return strings.join(string_items, internal.sep, allocator=allocator)
+        case Variable_Access:
+            return strings.concatenate({ "$", internal.name }, allocator=allocator)
     }
     unreachable()
 }

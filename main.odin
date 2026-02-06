@@ -25,6 +25,8 @@ main :: proc() {
     error_prop(ninja_ir.ir_context_init(&ir))
     defer ninja_ir.ir_context_destroy(&ir)
 
+    ir.variables["ar"] = "ar"
+
     ar_rule: ^ninja_ir.Rule
     {
         err: mem.Allocator_Error
@@ -34,7 +36,7 @@ main :: proc() {
 
     append(&ar_rule.command,
         "rm", "-f", ninja_ir.Special_Variable.Out, "&&", 
-        "ar", "crs", ninja_ir.Special_Variable.Out, ninja_ir.Special_Variable.In
+        ninja_ir.Variable_Access{ name="ar" }, "crs", ninja_ir.Special_Variable.Out, ninja_ir.Special_Variable.In
     )
     append(&ar_rule.desc,
         "AR", ninja_ir.Special_Variable.Out
