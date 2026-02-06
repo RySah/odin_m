@@ -10,7 +10,6 @@ import vmem "core:mem/virtual"
 import "core:strings"
 import "core:os"
 import "core:bufio"
-import "core:fmt"
 
 import "base:runtime"
 
@@ -137,11 +136,15 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
 
 ir_context_wprint :: proc(writer: io.Writer, self: ^IR_Context, project_name: string) -> mem.Allocator_Error {
     emit_config := ir_context_to_emit_config(self, project_name) or_return
+    
+    ninja_emit.config_resolve_required_features(&emit_config, skip=emit_config.required_features) or_return
     ninja_emit.wprint_config(writer, &emit_config) or_return
     return nil
 }
 ir_context_sbprint :: proc(sb: ^strings.Builder, self: ^IR_Context, project_name: string) -> mem.Allocator_Error {
     emit_config := ir_context_to_emit_config(self, project_name) or_return
+    
+    ninja_emit.config_resolve_required_features(&emit_config, skip=emit_config.required_features) or_return
     ninja_emit.sbprint_config(sb, &emit_config) or_return
     return nil
 }
@@ -154,6 +157,8 @@ ir_context_fprint :: proc(fd: os.Handle, self: ^IR_Context, project_name: string
 	bufio.writer_init_with_buf(&b, os.stream_from_handle(fd), buf[:])
 
 	w := bufio.writer_to_writer(&b)
+
+    ninja_emit.config_resolve_required_features(&emit_config, skip=emit_config.required_features) or_return
     ninja_emit.wprint_config(w, &emit_config) or_return
     return nil
 }

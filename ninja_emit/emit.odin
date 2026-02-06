@@ -5,6 +5,7 @@ import "../ninja_basic"
 import "core:strings"
 import "core:io"
 import "core:mem"
+import "core:fmt"
 
 wprint_config :: proc(writer: io.Writer, self: ^Config) -> mem.Allocator_Error {
     basic := config_to_basic_config(self, allocator=context.temp_allocator) or_return
