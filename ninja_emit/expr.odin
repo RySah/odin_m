@@ -54,7 +54,10 @@ sbprint_bin_expr :: proc(sb: ^strings.Builder, e: Bin_Expr) -> string {
 
 sbprint_expr_collection :: proc(sb: ^strings.Builder, e: Expr_Collection) -> string {
 	for expr, i in e {
-		fmt.sbprintf(sb, "%s%s", sbprint_expr(sb, expr^), i + 1 < len(e) ? " " : "")
+		sbprint_expr(sb, expr^)
+		if i + 1 < len(e) {
+			strings.write_byte(sb, ' ')
+		}
 	}
 	return strings.to_string(sb^)
 }
@@ -73,11 +76,12 @@ sbprint_string_expr :: proc(sb: ^strings.Builder, e: String_Expr) -> string {
 }
 
 sbprint_expr :: proc(sb: ^strings.Builder, e: Expr) -> string {
-	switch internal in e {
+	#partial switch &internal in e {
 		case Expr_Collection:    return sbprint_expr_collection(sb, internal)
-		case String_Expr:        return sbprint_string_expr(sb, internal)
 		case Bin_Expr:           return sbprint_bin_expr(sb, internal)
 		case Int_Expr:           return sbprint_int_expr(sb, internal)
+		case String_Expr:        return sbprint_string_expr(sb, internal)
 	}
-	return strings.to_string(sb^)
+	unreachable()
+	//return strings.to_string(sb^)
 }
