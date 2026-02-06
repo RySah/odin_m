@@ -89,6 +89,13 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
             name="command",
             expr=command_expr
         }) or_return
+        if len(rule.desc) > 0 {
+            description_expr := _command_to_emit_expr(transmute(^Command)(&rule.desc), allocator=vmem.arena_allocator(&self.arena)) or_return
+            ninja_emit.statement_add_variable(&stmt, ninja_emit.Variable{
+                name="description",
+                expr=description_expr
+            }) or_return
+        }
         ninja_emit.register_statement(&out, stmt) or_return
     }
 
