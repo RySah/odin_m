@@ -1,6 +1,13 @@
 package ninja_ir
 
-Pool :: struct {
+Non_Interactive_Pool :: struct {
     name: string,
     depth: u8
+}
+
+Interactive_Pool :: struct {}
+
+Pool :: union {
+    Non_Interactive_Pool,
+    Interactive_Pool
 }

@@ -30,10 +30,7 @@ main :: proc() {
     ar_rule: ^ninja_ir.Rule
     {
         err: mem.Allocator_Error
-        ar_rule, err = ninja_ir.rule(&ir, "ar", pool=ninja_ir.Pool{
-            name="some_pool",
-            depth=3
-        })
+        ar_rule, err = ninja_ir.rule(&ir, "ar", pool=ninja_ir.Interactive_Pool{})
         error_prop(err)
     }
 

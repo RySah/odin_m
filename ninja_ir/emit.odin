@@ -18,14 +18,15 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
 
     out.project_name = project_name
 
-    pools: []Pool
+    pools: []Non_Interactive_Pool
+    requires_interactive_pool: bool
     when async.IS_SUPPORTED {{
         async_dispatcher: async.Dispatcher
         async.init(&async_dispatcher, 2) or_return
         defer async.destroy(&async_dispatcher)
 
         pools_promise := async.run(&async_dispatcher,
-            proc(params: ..any) -> (out: struct{ items: []Pool, err: mem.Allocator_Error }) {
+            proc(params: ..any) -> (out: struct{ items: []Non_Interactive_Pool, requires_interactive: bool,  err: mem.Allocator_Error }) {
                 self: ^IR_Context
                 allocator: runtime.Allocator
                 #type_assert {
@@ -33,12 +34,17 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
                     allocator = params[1].(runtime.Allocator)
                 }
 
-                pool_map := make(map[string]Pool, allocator=context.temp_allocator)
+                pool_map := make(map[string]Non_Interactive_Pool, allocator=context.temp_allocator)
 
                 for rule in self.rules {
                     if pool_impl, assigned_pool := rule.pool.?; assigned_pool {
-                        if pool_impl.name in pool_map do continue
-                        pool_map[pool_impl.name] = pool_impl
+                        switch internal_pool_impl in pool_impl {
+                            case Non_Interactive_Pool:
+                                if internal_pool_impl.name in pool_map do continue
+                                pool_map[internal_pool_impl.name] = internal_pool_impl
+                            case Interactive_Pool:
+                                out.requires_interactive = true
+                        }
                     }
                 }
 
@@ -75,13 +81,19 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
         async.await(variables_assign_promise)
 
         pools = pools_result.items
+        requires_interactive_pool = pools_result.requires_interactive
     }} else {{
         pool_map := make(map[string]Pool, allocator=context.temp_allocator)
 
         for rule in self.rules {
             if pool_impl, assigned_pool := rule.pool.?; assigned_pool {
-                if pool_impl.name in pool_map do continue
-                pool_map[pool_impl.name] = pool_impl
+                switch internal_pool_impl in pool_impl {
+                    case Non_Interactive_Pool:
+                        if internal_pool_impl.name in pool_map do continue
+                        pool_map[internal_pool_impl.name] = internal_pool_impl
+                    case Interactive_Pool:
+                        requires_interactive_pool = true
+                }
             }
         }
 
@@ -94,6 +106,10 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
             })
         }
     }}
+
+    if requires_interactive_pool {
+        out.required_features |= { .CONSOLE_POOL }
+    }
 
     for &pool in pools {
         stmt := ninja_emit.create_statement(&out) or_return
@@ -123,10 +139,18 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
             }) or_return
         }
         if pool_impl, has_pool := rule.pool.?; has_pool {
-            append(&stmt.variables, ninja_emit.Variable{
-                name="pool",
-                expr=pool_impl.name
-            }) or_return
+            switch internal_pool_impl in pool_impl {
+                case Non_Interactive_Pool:
+                    append(&stmt.variables, ninja_emit.Variable{
+                        name="pool",
+                        expr=internal_pool_impl.name
+                    }) or_return
+                case Interactive_Pool:
+                    append(&stmt.variables, ninja_emit.Variable{
+                        name="pool",
+                        expr="console"
+                    }) or_return
+            }
         }
         for k, &v in rule.variables {
             append(&stmt.variables, ninja_emit.Variable{
