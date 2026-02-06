@@ -2,6 +2,7 @@ package ninja_ir
 
 import "core:mem"
 import "core:slice"
+import vmem "core:mem/virtual"
 
 Exec :: struct {
     file: ^File,
@@ -10,19 +11,15 @@ Exec :: struct {
 }
 
 @private exec_make :: proc(ctx: ^IR_Context) -> (out: ^Exec, err: mem.Allocator_Error) #optional_allocator_error {
-    out = new(Exec, allocator=ctx.allocator) or_return
+    out = new(Exec, allocator=vmem.arena_allocator(&ctx.arena)) or_return
     append(&ctx.execs, out) or_return
     return
 }
 
-exec_destroy :: proc(self: ^Exec, ctx: ^IR_Context, unregister := true) -> mem.Allocator_Error {
-    if unregister {
-        if i, found := slice.linear_search(ctx.execs[:], self); found {
-            unordered_remove(&ctx.execs, i)
-        }
+exec_unregister :: proc(self: ^Exec, ctx: ^IR_Context) {
+    if i, found := slice.linear_search(ctx.execs[:], self); found {
+        unordered_remove(&ctx.execs, i)
     }
-    free(self, allocator=ctx.allocator) or_return
-    return nil
 }
 
 exec :: proc(

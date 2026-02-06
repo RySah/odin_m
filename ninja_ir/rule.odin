@@ -2,6 +2,7 @@ package ninja_ir
 
 import "core:mem"
 import "core:slice"
+import vmem "core:mem/virtual"
 
 Rule :: struct {
     name: string,
@@ -10,21 +11,16 @@ Rule :: struct {
 }
 
 @private rule_make :: proc(ctx: ^IR_Context) -> (out: ^Rule, err: mem.Allocator_Error) #optional_allocator_error {
-    out = new(Rule, allocator=ctx.allocator) or_return
-    out.command = make(Command, allocator=ctx.allocator) or_return
+    out = new(Rule, allocator=vmem.arena_allocator(&ctx.arena)) or_return
+    out.command = make(Command, allocator=vmem.arena_allocator(&ctx.arena)) or_return
     append(&ctx.rules, out) or_return
     return
 }
 
-rule_destroy :: proc(self: ^Rule, ctx: ^IR_Context, unregister := true) -> mem.Allocator_Error {
-    if unregister {
-        if i, found := slice.linear_search(ctx.rules[:], self); found {
-            unordered_remove(&ctx.rules, i)
-        }
+rule_unregister :: proc(self: ^Rule, ctx: ^IR_Context) {
+    if i, found := slice.linear_search(ctx.rules[:], self); found {
+        unordered_remove(&ctx.rules, i)
     }
-    delete(self.command) or_return
-    free(self, allocator=ctx.allocator) or_return
-    return nil
 }
 
 rule :: proc(ctx: ^IR_Context, name: string, pool: Maybe(Pool) = nil) -> (out: ^Rule, err: mem.Allocator_Error) #optional_allocator_error {

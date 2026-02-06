@@ -2,6 +2,7 @@ package ninja_ir
 
 import "core:mem"
 import "core:slice"
+import vmem "core:mem/virtual"
 
 File_Location :: enum u8 {
     Local,
@@ -17,19 +18,15 @@ File :: struct {
 }
 
 @private file_make :: proc(ctx: ^IR_Context) -> (out: ^File, err: mem.Allocator_Error) #optional_allocator_error {
-    out = new(File, allocator=ctx.allocator) or_return
+    out = new(File, allocator=vmem.arena_allocator(&ctx.arena)) or_return
     append(&ctx.files, out) or_return
     return
 }
 
-file_destroy :: proc(self: ^File, ctx: ^IR_Context, unregister := true) -> mem.Allocator_Error {
-    if unregister {
-        if i, found := slice.linear_search(ctx.files[:], self); found {
-            unordered_remove(&ctx.files, i)
-        }
+file_unregister :: proc(self: ^File, ctx: ^IR_Context) {
+    if i, found := slice.linear_search(ctx.files[:], self); found {
+        unordered_remove(&ctx.files, i)
     }
-    free(self, allocator=ctx.allocator) or_return
-    return nil
 }
 
 file :: proc(ctx: ^IR_Context, name: string, locations: File_Location_Set) -> (out: ^File, err: mem.Allocator_Error) #optional_allocator_error {
