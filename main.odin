@@ -1,7 +1,6 @@
 package main
 
-import "ninja_basic"
-import "ninja_emit"
+import "ninja_ir"
 
 import "core:fmt"
 

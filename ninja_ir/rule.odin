@@ -5,7 +5,7 @@ import "core:slice"
 
 Rule :: struct {
     name: string,
-    pool: ^Pool,
+    pool: Maybe(Pool),
     command: Command
 }
 
@@ -27,7 +27,7 @@ rule_destroy :: proc(self: ^Rule, ctx: ^IR_Context, unregister := true) -> mem.A
     return nil
 }
 
-rule :: proc(ctx: ^IR_Context, name: string, pool: ^Pool = nil) -> (out: ^Rule, err: mem.Allocator_Error) #optional_allocator_error {
+rule :: proc(ctx: ^IR_Context, name: string, pool: Maybe(Pool) = nil) -> (out: ^Rule, err: mem.Allocator_Error) #optional_allocator_error {
     out = rule_make(ctx) or_return
     out.name = name
     out.pool = pool

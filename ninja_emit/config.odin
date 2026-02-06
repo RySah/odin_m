@@ -45,7 +45,7 @@ config_resolve_required_features :: proc(self: ^Config, skip := Feature_Set{}) -
 	_get_required_features_for_expr :: proc(expr: ^Expr, features: ^Feature_Set, skip: Feature_Set, is_output: bool) {
 		#partial switch &internal in expr^ {
 			case Expr_Collection:
-				for expr_item in internal.arr {
+				for expr_item in internal {
 					_get_required_features_for_expr(expr_item, features, skip, is_output)
 				}
 			case Bin_Expr:
@@ -68,7 +68,7 @@ config_resolve_required_features :: proc(self: ^Config, skip := Feature_Set{}) -
 		if stmt.kind == .Pool {
 			#type_assert {
 				if str_expr, is_str_expr := stmt.left.(String_Expr); is_str_expr {
-					if str_expr.base == "console" {
+					if str_expr == "console" {
 						console_pool_is_user_defined = true
 					} 
 				}
@@ -80,7 +80,7 @@ config_resolve_required_features :: proc(self: ^Config, skip := Feature_Set{}) -
 					if var.name == "pool" {
 						#type_assert {
 							if str_expr, is_str_expr := stmt.left.(String_Expr); is_str_expr {
-								if str_expr.base == "console" && !console_pool_is_user_defined {
+								if str_expr == "console" && !console_pool_is_user_defined {
 									self.required_features += { .CONSOLE_POOL }
 									break
 								}
@@ -95,7 +95,7 @@ config_resolve_required_features :: proc(self: ^Config, skip := Feature_Set{}) -
 					if var.name == "pool" {
 						#type_assert {
 							if str_expr, is_str_expr := stmt.left.(String_Expr); is_str_expr {
-								if str_expr.base == "console" && !console_pool_is_user_defined {
+								if str_expr == "console" && !console_pool_is_user_defined {
 									self.required_features += { .CONSOLE_POOL }
 									break
 								}

@@ -36,10 +36,16 @@ statement_to_basic_statement :: proc(self: ^Statement, allocator := context.allo
     builder := strings.builder_make(allocator=context.temp_allocator) or_return
 
     out.kind = self.kind
-    out.left = strings.clone(sbprint_expr(&builder, self.left), allocator=allocator) or_return
-    strings.builder_reset(&builder)
-    out.right = strings.clone(sbprint_expr(&builder, self.right), allocator=allocator) or_return
-    strings.builder_reset(&builder)
+    switch out.kind {
+        case .Phony, .Build:
+            out.left = strings.clone(sbprint_expr(&builder, self.left), allocator=allocator) or_return
+            strings.builder_reset(&builder)
+            out.right = strings.clone(sbprint_expr(&builder, self.right), allocator=allocator) or_return
+            strings.builder_reset(&builder)
+        case .Rule, .Pool, .Default:
+            out.left = strings.clone(sbprint_expr(&builder, self.left), allocator=allocator) or_return
+            strings.builder_reset(&builder)
+    }
     
     for &var in self.variables {
         out.variables[var.name] = strings.clone(sbprint_expr(&builder, var.expr), allocator=allocator) or_return

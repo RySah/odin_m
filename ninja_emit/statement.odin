@@ -13,8 +13,7 @@ Statement_Manager :: struct {
 Statement :: struct {
 	kind: Statement_Kind,
 	left, right: Expr,
-	variables: [dynamic]Variable,
-	source_loc: Maybe(runtime.Source_Code_Location)
+	variables: [dynamic]Variable
 }
 
 statement_manager_init :: proc(self: ^Statement_Manager, allocator := context.allocator) -> mem.Allocator_Error {
@@ -24,15 +23,14 @@ statement_manager_init :: proc(self: ^Statement_Manager, allocator := context.al
 }
 
 statement_manager_destroy :: proc(self: ^Statement_Manager) -> mem.Allocator_Error {
+	for &stmt in self.statements {
+		statement_destroy(&stmt) or_return
+	}
 	delete(self.statements) or_return
 	return nil
 }
 
-statement_manager_register_statement :: proc(self: ^Statement_Manager, s: Statement, source_loc: runtime.Source_Code_Location = #caller_location) -> mem.Allocator_Error {
-	s := s
-	if _, s_loc_set := s.source_loc.?; !s_loc_set {
-		s.source_loc = source_loc
-	}
+statement_manager_register_statement :: proc(self: ^Statement_Manager, s: Statement) -> mem.Allocator_Error {
 	append(&self.statements, s) or_return
 	return nil
 }

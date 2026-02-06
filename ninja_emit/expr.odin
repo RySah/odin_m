@@ -3,7 +3,7 @@ package ninja_emit
 import "core:strings"
 import "core:fmt"
 
-import "base:runtime"
+import "base:intrinsics"
 
 Bin_Expr_Kind :: enum u8 {
 	Unknown,
@@ -17,23 +17,26 @@ Bin_Expr :: struct {
 	left, right: ^Expr
 }
 
-Expr_Collection :: struct {
-	arr: []^Expr,
-}
+Expr_Collection :: []^Expr
 
-Int_Expr :: struct {
-	base: union { i64, u64 },
-}
+Int_Expr :: union { i64, u64 }
 
-String_Expr :: struct {
-	base: string,
-}
+String_Expr :: string
 
 Expr :: union {
 	Expr_Collection,
 	Bin_Expr,
 	Int_Expr,
 	String_Expr,
+}
+
+to_int_expr :: proc(v: $T) -> Int_Expr where intrinsics.type_is_integer(T) {
+	#assert(size_of(T) <= size_of(u64))
+	when intrinsics.type_is_unsigned(T) {
+		return u64(v)
+	} else {
+		return i64(v)
+	}
 }
 
 sbprint_bin_expr :: proc(sb: ^strings.Builder, e: Bin_Expr) -> string {
@@ -50,14 +53,14 @@ sbprint_bin_expr :: proc(sb: ^strings.Builder, e: Bin_Expr) -> string {
 }
 
 sbprint_expr_collection :: proc(sb: ^strings.Builder, e: Expr_Collection) -> string {
-	for expr, i in e.arr {
-		fmt.sbprintf(sb, "%s%s", sbprint_expr(sb, expr^), i + 1 < len(e.arr) ? " " : "")
+	for expr, i in e {
+		fmt.sbprintf(sb, "%s%s", sbprint_expr(sb, expr^), i + 1 < len(e) ? " " : "")
 	}
 	return strings.to_string(sb^)
 }
 
 sbprint_int_expr :: proc(sb: ^strings.Builder, e: Int_Expr) -> string {
-	switch i in e.base {
+	switch i in e {
 		case i64: fmt.sbprintf(sb, "%d", i)
 		case u64: fmt.sbprintf(sb, "%d", i)
 	}
@@ -65,7 +68,7 @@ sbprint_int_expr :: proc(sb: ^strings.Builder, e: Int_Expr) -> string {
 }
 
 sbprint_string_expr :: proc(sb: ^strings.Builder, e: String_Expr) -> string {
-	strings.write_string(sb, e.base)
+	strings.write_string(sb, e)
 	return strings.to_string(sb^)
 }
 
