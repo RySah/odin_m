@@ -177,14 +177,14 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
             name="command",
             expr=command_expr
         }) or_return
-        if len(rule.desc) > 0 {
-            description_slice := transmute(Command_Slice)(rule.desc[:])
-            description_expr := _command_to_emit_expr(&description_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
-            append(&stmt.variables, ninja_emit.Variable{
-                name="description",
-                expr=description_expr
-            }) or_return
-        }
+        // if len(rule.desc) > 0 {
+        //     description_slice := transmute(Command_Slice)(rule.desc[:])
+        //     description_expr := _command_to_emit_expr(&description_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
+        //     append(&stmt.variables, ninja_emit.Variable{
+        //         name="description",
+        //         expr=description_expr
+        //     }) or_return
+        // }
         if pool_impl, has_pool := rule.pool.?; has_pool {
             switch internal_pool_impl in pool_impl {
                 case Non_Interactive_Pool:
