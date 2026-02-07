@@ -34,11 +34,10 @@ main :: proc() {
         error_prop(err)
     }
 
-    append(&ar_rule.command,
+    ar_rule.variables["command"] = ninja_ir.Command_Slice{
         "rm", "-f", ninja_ir.Special_Variable.Out, "&&", 
         ninja_ir.Variable_Access{ name="ar" }, "crs", ninja_ir.Special_Variable.Out, ninja_ir.Special_Variable.In
-    )
-
+    }
     ar_rule.variables["description"] = ninja_ir.Command_Slice{ "AR", ninja_ir.Special_Variable.Out }
 
     error_prop(ninja_ir.ir_context_emit(os.stdout, &ir, "test"))

@@ -84,13 +84,22 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
 
                 for &rule in self.rules {
                     maybe_rsp_info: Maybe(Exec_Response_File_Info) = nil
-                    for &token in rule.command {
-                        if exec, is_exec := token.(^Exec); is_exec {
-                            if rsp_info, has_rsp_info := exec.rsp_info.?; has_rsp_info {
-                                rsp_info = rsp_info
-                                break
-                            }
-                        }
+                    if command, has_command := rule.variables["command"]; has_command {
+                        #partial switch &internal_command in command {
+                            case Command_Slice:
+                                for &token in internal_command {
+                                    if exec, is_exec := token.(^Exec); is_exec {
+                                        if rsp_info, has_rsp_info := exec.rsp_info.?; has_rsp_info {
+                                            rsp_info = rsp_info
+                                            break
+                                        }
+                                    }
+                                }
+                            case ^Exec:
+                                if rsp_info, has_rsp_info := internal_command.rsp_info.?; has_rsp_info {
+                                    rsp_info = rsp_info
+                                }
+                        } 
                     }
 
                     if rsp_info, has_rsp_info := maybe_rsp_info.?; has_rsp_info {
@@ -171,12 +180,12 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
         stmt := ninja_emit.create_statement(&out) or_return
         stmt.kind = .Rule
         stmt.left = rule.name
-        command_slice := transmute(Command_Slice)(rule.command[:])
-        command_expr := _command_to_emit_expr(&command_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
-        append(&stmt.variables, ninja_emit.Variable{
-            name="command",
-            expr=command_expr
-        }) or_return
+        // command_slice := transmute(Command_Slice)(rule.command[:])
+        // command_expr := _command_to_emit_expr(&command_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
+        // append(&stmt.variables, ninja_emit.Variable{
+        //     name="command",
+        //     expr=command_expr
+        // }) or_return
         // if len(rule.desc) > 0 {
         //     description_slice := transmute(Command_Slice)(rule.desc[:])
         //     description_expr := _command_to_emit_expr(&description_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
