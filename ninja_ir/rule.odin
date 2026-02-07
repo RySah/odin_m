@@ -7,12 +7,12 @@ import vmem "core:mem/virtual"
 Rule :: struct {
     name: string,
     pool: Maybe(Pool),
-    variables: map[string]Variable_Expr
+    variables: map[string]Rule_Variable_Expr
 }
 
 @private rule_make :: proc(ctx: ^IR_Context) -> (out: ^Rule, err: mem.Allocator_Error) #optional_allocator_error {
     out = new(Rule, allocator=vmem.arena_allocator(&ctx.arena)) or_return
-    out.variables = make(map[string]Variable_Expr, allocator=vmem.arena_allocator(&ctx.arena))
+    out.variables = make(map[string]Rule_Variable_Expr, allocator=ctx.container_allocator)
     append(&ctx.rules, out) or_return
     return
 }
@@ -21,6 +21,11 @@ rule_unregister :: proc(self: ^Rule, ctx: ^IR_Context) {
     if i, found := slice.linear_search(ctx.rules[:], self); found {
         unordered_remove(&ctx.rules, i)
     }
+}
+
+rule_destroy :: proc(self: ^Rule) -> mem.Allocator_Error {
+    delete(self.variables) or_return
+    return nil
 }
 
 rule :: proc(ctx: ^IR_Context, name: string, pool: Maybe(Pool) = nil) -> (out: ^Rule, err: mem.Allocator_Error) #optional_allocator_error {

@@ -10,7 +10,7 @@ Exec_Response_File_Info :: struct {
 }
 
 Exec :: struct {
-    file: ^File,
+    file: File,
     rsp_info: Maybe(Exec_Response_File_Info)
 }
 
@@ -28,7 +28,7 @@ exec_unregister :: proc(self: ^Exec, ctx: ^IR_Context) {
 
 exec :: proc(
     ctx: ^IR_Context, 
-    file: ^File, 
+    file: File, 
     rsp_info: Maybe(Exec_Response_File_Info) = nil,
     loc := #caller_location
 ) -> (out: ^Exec, err: mem.Allocator_Error) #optional_allocator_error {

@@ -10,6 +10,7 @@ import vmem "core:mem/virtual"
 import "core:strings"
 import "core:os"
 import "core:bufio"
+import "core:fmt"
 
 import "base:runtime"
 
@@ -22,7 +23,7 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
     requires_interactive_pool: bool
     when async.IS_SUPPORTED {{
         async_dispatcher: async.Dispatcher
-        async.init(&async_dispatcher, 2) or_return
+        async.init(&async_dispatcher, min(3, async.system_thread_count())) or_return
         defer async.destroy(&async_dispatcher)
 
         pools_promise := async.run(&async_dispatcher,
@@ -67,7 +68,7 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
                 for k, &v in self.variables {
                     append(&out.variables, ninja_emit.Variable{
                         name = k,
-                        expr = _variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
+                        expr = _rule_variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
                     })
                 }
             },
@@ -86,7 +87,7 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
                     maybe_rsp_info: Maybe(Exec_Response_File_Info) = nil
                     if command, has_command := rule.variables["command"]; has_command {
                         #partial switch &internal_command in command {
-                            case Command_Slice:
+                            case Rule_Command:
                                 for &token in internal_command {
                                     if exec, is_exec := token.(^Exec); is_exec {
                                         if rsp_info, has_rsp_info := exec.rsp_info.?; has_rsp_info {
@@ -103,8 +104,8 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
                     }
 
                     if rsp_info, has_rsp_info := maybe_rsp_info.?; has_rsp_info {
-                        rule.variables["rspfile"] = Command_Slice{ transmute(Command_Token)rsp_info.file }
-                        rule.variables["rspfile_content"] = transmute(Variable_Expr)rsp_info.content
+                        rule.variables["rspfile"] = Rule_Command{ transmute(Rule_Command_Token)rsp_info.file }
+                        rule.variables["rspfile_content"] = transmute(Rule_Variable_Expr)rsp_info.content
                     }
                 }
             },
@@ -146,8 +147,8 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
             }
 
             if rsp_info, has_rsp_info := maybe_rsp_info.?; has_rsp_info {
-                rule.variables["rspfile"] = Command_Slice{ transmute(Command_Token)rsp_info.file }
-                rule.variables["rspfile_content"] = transmute(Variable_Expr)rsp_info.content
+                rule.variables["rspfile"] = Rule_Command{ transmute(Rule_Command_Token)rsp_info.file }
+                rule.variables["rspfile_content"] = transmute(Rule_Variable_Expr)rsp_info.content
             }
         }
 
@@ -156,7 +157,7 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
         for k, &v in self.variables {
             append(&out.variables, ninja_emit.Variable{
                 name = k,
-                expr = _variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
+                expr = _rule_variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
             })
         }
     }}
@@ -180,20 +181,6 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
         stmt := ninja_emit.create_statement(&out) or_return
         stmt.kind = .Rule
         stmt.left = rule.name
-        // command_slice := transmute(Command_Slice)(rule.command[:])
-        // command_expr := _command_to_emit_expr(&command_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
-        // append(&stmt.variables, ninja_emit.Variable{
-        //     name="command",
-        //     expr=command_expr
-        // }) or_return
-        // if len(rule.desc) > 0 {
-        //     description_slice := transmute(Command_Slice)(rule.desc[:])
-        //     description_expr := _command_to_emit_expr(&description_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
-        //     append(&stmt.variables, ninja_emit.Variable{
-        //         name="description",
-        //         expr=description_expr
-        //     }) or_return
-        // }
         if pool_impl, has_pool := rule.pool.?; has_pool {
             switch internal_pool_impl in pool_impl {
                 case Non_Interactive_Pool:
@@ -211,9 +198,43 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
         for k, &v in rule.variables {
             append(&stmt.variables, ninja_emit.Variable{
                 name = k,
-                expr = _variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
+                expr = _rule_variable_expr_to_emit_expr(&v, allocator=vmem.arena_allocator(&self.arena))
             })
         }
+        ninja_emit.register_statement(&out, stmt) or_return
+    }
+
+    for &build in self.builds {
+        stmt := ninja_emit.create_statement(&out) or_return
+        stmt.kind = .Build
+
+        
+        stmt.left = build.name
+
+        order_only_deps := make([dynamic]^ninja_emit.Expr, 0, len(build.parents), allocator=vmem.arena_allocator(&self.arena)) or_return
+        for parent in build.parents {
+            out := new(ninja_emit.Expr, allocator=vmem.arena_allocator(&self.arena)) or_return
+            out^ = parent.name
+            append(&order_only_deps, out) or_return
+        }
+        if command, has_command := build.variables["command"]; has_command {
+            #partial switch &internal_command in command {
+                case Build_Command:
+                    for &token in internal_command {
+                        if file, is_file := token.(File); is_file {
+                            ref, is_build := file.(^Build)
+                            if is_build {
+                                fmt.assertf(ref != build, "Cyclical reference, file `%v` is referencing: %#v", file, build)
+                                out := new(ninja_emit.Expr, allocator=vmem.arena_allocator(&self.arena)) or_return
+                                out^ = ref.name
+                                append(&order_only_deps, out) or_return
+                            }
+                        }
+                        
+                    }
+            }
+        }
+
         ninja_emit.register_statement(&out, stmt) or_return
     }
 
