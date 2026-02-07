@@ -21,6 +21,9 @@ Concat :: struct {
 
 Command :: distinct [dynamic]Command_Token
 
+Command_Slice :: distinct []Command_Token
+
+
 //TODO(rysah): Make safe public impl of the `_command_token_to_string` and `_command_to_emit_expr`
 
 //NOTE(rysah): Does not guarantee memory allocation, and where. Only safe to use in context of an arena.
@@ -44,7 +47,7 @@ Command :: distinct [dynamic]Command_Token
 }
 
 //NOTE(rysah): Does not guarantee memory allocation, and where. Only safe to use in context of an arena.
-@private _command_to_emit_expr :: proc(self: ^Command, allocator := context.allocator) -> (out: ninja_emit.Expr_Collection, err: mem.Allocator_Error) #optional_allocator_error {
+@private _command_to_emit_expr :: proc(self: ^Command_Slice, allocator := context.allocator) -> (out: ninja_emit.Expr_Collection, err: mem.Allocator_Error) #optional_allocator_error {
     out = make(ninja_emit.Expr_Collection, len(self), allocator=allocator) or_return
     for &token, i in self {
         out[i] = new(ninja_emit.Expr, allocator=allocator) or_return

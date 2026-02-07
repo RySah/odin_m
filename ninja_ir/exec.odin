@@ -4,10 +4,14 @@ import "core:mem"
 import "core:slice"
 import vmem "core:mem/virtual"
 
+Exec_Response_File_Info :: struct {
+    file: Response_File,
+    content: Response_File_Content
+}
+
 Exec :: struct {
     file: ^File,
-    allows_response_file: bool,
-    response_file_formatter: Response_File_Formatter_Proc
+    rsp_info: Maybe(Exec_Response_File_Info)
 }
 
 @private exec_make :: proc(ctx: ^IR_Context) -> (out: ^Exec, err: mem.Allocator_Error) #optional_allocator_error {
@@ -25,18 +29,11 @@ exec_unregister :: proc(self: ^Exec, ctx: ^IR_Context) {
 exec :: proc(
     ctx: ^IR_Context, 
     file: ^File, 
-    response_file_formatter: Maybe(Response_File_Formatter_Proc) = nil,
+    rsp_info: Maybe(Exec_Response_File_Info) = nil,
     loc := #caller_location
 ) -> (out: ^Exec, err: mem.Allocator_Error) #optional_allocator_error {
     out = exec_make(ctx) or_return
     out.file = file
-    if response_file_formatter_v, provided := response_file_formatter.?; provided {
-        assert(response_file_formatter_v != nil, loc=loc)
-        out.allows_response_file = true
-        out.response_file_formatter = response_file_formatter_v
-    } else {
-        out.allows_response_file = false
-        out.response_file_formatter = default_response_file_formatter_proc
-    }
+    out.rsp_info = rsp_info
     return
 }

@@ -4,7 +4,7 @@ import "core:mem"
 import vmem "core:mem/virtual"
 
 IR_Context :: struct {
-    limits: Limits,
+    //limits: Limits,
     files: [dynamic]^File,
     rules: [dynamic]^Rule,
     execs: [dynamic]^Exec,
@@ -13,7 +13,7 @@ IR_Context :: struct {
 }
 
 ir_context_init :: proc(self: ^IR_Context) -> mem.Allocator_Error {
-    self.limits = get_limits()
+    //self.limits = get_limits()
     vmem.arena_init_growing(&self.arena) or_return
     allocator := vmem.arena_allocator(&self.arena)
     self.files = make([dynamic]^File, allocator=allocator) or_return

@@ -55,7 +55,7 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
             allocator=context.temp_allocator
         ) or_return
 
-        variables_assign_promise := async.run(&async_dispatcher,
+        global_var_assignment_promise := async.run(&async_dispatcher,
             proc(params: ..any) {
                 self: ^IR_Context
                 out: ^ninja_emit.Config
@@ -75,17 +75,47 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
             allocator=context.temp_allocator
         ) or_return
 
+        rsp_var_assignment_promise := async.run(&async_dispatcher,
+            proc(params: ..any) {
+                self: ^IR_Context
+                #type_assert {
+                    self = params[0].(^IR_Context)
+                }
+
+                for &rule in self.rules {
+                    maybe_rsp_info: Maybe(Exec_Response_File_Info) = nil
+                    for &token in rule.command {
+                        if exec, is_exec := token.(^Exec); is_exec {
+                            if rsp_info, has_rsp_info := exec.rsp_info.?; has_rsp_info {
+                                rsp_info = rsp_info
+                                break
+                            }
+                        }
+                    }
+
+                    if rsp_info, has_rsp_info := maybe_rsp_info.?; has_rsp_info {
+                        rule.variables["rspfile"] = Command_Slice{ transmute(Command_Token)rsp_info.file }
+                        rule.variables["rspfile_content"] = transmute(Variable_Expr)rsp_info.content
+                    }
+                }
+            },
+            self,
+            allocator=context.temp_allocator
+        )
+
         pools_result := async.await(pools_promise)
         if pools_result.err != nil do return out, pools_result.err
 
-        async.await(variables_assign_promise)
+        async.await(global_var_assignment_promise)
 
         pools = pools_result.items
         requires_interactive_pool = pools_result.requires_interactive
+
+        async.await(rsp_var_assignment_promise)
     }} else {{
         pool_map := make(map[string]Pool, allocator=context.temp_allocator)
 
-        for rule in self.rules {
+        for &rule in self.rules {
             if pool_impl, assigned_pool := rule.pool.?; assigned_pool {
                 switch internal_pool_impl in pool_impl {
                     case Non_Interactive_Pool:
@@ -94,6 +124,21 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
                     case Interactive_Pool:
                         requires_interactive_pool = true
                 }
+            }
+
+            maybe_rsp_info: Maybe(Exec_Response_File_Info) = nil
+            for &token in rule.command {
+                if exec, is_exec := token.(^Exec); is_exec {
+                    if rsp_info, has_rsp_info := exec.rsp_info.?; has_rsp_info {
+                        rsp_info = rsp_info
+                        break
+                    }
+                }
+            }
+
+            if rsp_info, has_rsp_info := maybe_rsp_info.?; has_rsp_info {
+                rule.variables["rspfile"] = Command_Slice{ transmute(Command_Token)rsp_info.file }
+                rule.variables["rspfile_content"] = transmute(Variable_Expr)rsp_info.content
             }
         }
 
@@ -126,13 +171,15 @@ ir_context_to_emit_config :: proc(self: ^IR_Context, project_name: string) -> (o
         stmt := ninja_emit.create_statement(&out) or_return
         stmt.kind = .Rule
         stmt.left = rule.name
-        command_expr := _command_to_emit_expr(&rule.command, allocator=vmem.arena_allocator(&self.arena)) or_return
+        command_slice := transmute(Command_Slice)(rule.command[:])
+        command_expr := _command_to_emit_expr(&command_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
         append(&stmt.variables, ninja_emit.Variable{
             name="command",
             expr=command_expr
         }) or_return
         if len(rule.desc) > 0 {
-            description_expr := _command_to_emit_expr(transmute(^Command)(&rule.desc), allocator=vmem.arena_allocator(&self.arena)) or_return
+            description_slice := transmute(Command_Slice)(rule.desc[:])
+            description_expr := _command_to_emit_expr(&description_slice, allocator=vmem.arena_allocator(&self.arena)) or_return
             append(&stmt.variables, ninja_emit.Variable{
                 name="description",
                 expr=description_expr
